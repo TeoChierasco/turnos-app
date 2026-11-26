@@ -651,7 +651,10 @@ async function loadSrv(){const {data}=await sb.from('servicios').select('*').eq(
 $('#login').addEventListener('submit',async e=>{
   e.preventDefault();$('#lerr').textContent='';
   const {error}=await sb.auth.signInWithPassword({email:$('#em').value.trim(),password:$('#pw').value});
-  if(error){$('#lerr').textContent='Email o contraseña incorrectos.';return}
+  if(error){console.error(error);
+    $('#lerr').textContent=/invalid login credentials/i.test(error.message||'')?'Email o contraseña incorrectos.'
+      :/email not confirmed/i.test(error.message||'')?'Falta confirmar ese usuario en Supabase (Authentication → Users).'
+      :'No se pudo conectar con el servidor. Revisá la conexión o la configuración (config.js).';return}
   start();
 });
 $('#olvide').addEventListener('click',async()=>{
@@ -668,6 +671,7 @@ $('#reset').addEventListener('submit',async e=>{e.preventDefault();const p=$('#n
   location.hash='';location.reload()});
 
 async function start(){
+  if(/TU-PROYECTO|TU-ANON-KEY/.test(C.SUPABASE_URL+C.SUPABASE_ANON_KEY)){status('Falta configurar config.js con la URL y la clave de Supabase.');$('#login').hidden=false;return}
   const {data:{session}}=await sb.auth.getSession();
   if(!session){if($('#reset').hidden)$('#login').hidden=false;return}
   const {data:neg,error}=await sb.from('negocios').select('*').eq('owner',session.user.id).maybeSingle();

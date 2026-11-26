@@ -197,6 +197,7 @@ async function verTurno(){
 }
 
 async function init(){
+  if(/TU-PROYECTO|TU-ANON-KEY/.test(C.SUPABASE_URL+C.SUPABASE_ANON_KEY)){$('#nombre').textContent='Sistema sin configurar';status('Falta configurar config.js con la URL y la clave de Supabase.');return}
   if(filaId)return verFila();
   if(!slug&&!verId){$('#nombre').textContent='Link incompleto';status('Falta el comercio en el link (…/?n=nombre-del-local).');return}
   if(verId){$('#nombre').textContent='Tu turno';$('#dir').textContent='Turnos online';
