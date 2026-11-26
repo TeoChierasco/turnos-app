@@ -175,3 +175,4 @@ nav a{white-space:nowrap;flex:none}
 #fyo .chip small{display:none}
 .row .who .anum{color:#fff;font-size:13px}
 nav a.on{color:var(--red)}
+.times p,.times .muted{grid-column:1/-1}
