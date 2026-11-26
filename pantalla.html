@@ -55,7 +55,7 @@ footer small{display:block;font-size:2.4vmin;color:var(--mut);font-weight:400}
 const C=window.TURNOS_CONFIG,{$,esc}=window.TU;
 const sb=supabase.createClient(C.SUPABASE_URL,C.SUPABASE_ANON_KEY);
 const slug=new URLSearchParams(location.search).get('n');
-const link=location.href.split(/[?#]/)[0].replace(/pantalla\.html$/,'')+'?n='+encodeURIComponent(slug||'');
+const link=location.href.split(/[?#]/)[0].replace(/[^/]*$/,'')+'?n='+encodeURIComponent(slug||'');
 let antes=new Set(),qrHecho=false;
 const SIT={abierta:'Fila abierta',pausada:'Fila pausada',cerrada:'Fila cerrada',llena:'Fila completa'};
 

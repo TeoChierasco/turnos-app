@@ -677,7 +677,7 @@ async function start(){
   const {data:neg,error}=await sb.from('negocios').select('*').eq('owner',session.user.id).maybeSingle();
   if(error||!neg){status('Tu usuario no tiene un comercio asignado.');$('#tabs').hidden=false;return}
   NEG=neg;applyBrand();
-  LINK=location.href.replace(/admin\.html.*$/,'').replace(/[?#].*$/,'')+'?n='+neg.slug;
+  LINK=location.href.split(/[?#]/)[0].replace(/[^/]*$/,'')+'?n='+neg.slug;   // sirve con /admin y /admin.html
   $('#link').textContent=LINK;$('#flink').textContent=LINK;
   await Promise.all([loadSrv(),loadPros()]);
   $('#login').hidden=true;$('#tabs').hidden=false;
