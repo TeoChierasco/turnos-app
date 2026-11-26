@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#b8261d">
+<title>Panel del comercio</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="top band">
+  <div class="wrap">
+    <div class="brand"><div><h1 id="nombre">Panel del comercio</h1><p id="sub">Agenda de turnos</p><p class="planline" id="planline" hidden></p></div></div>
+    <nav id="tabs" hidden>
+      <a href="#fila" id="t-fila" hidden>Fila</a><a href="#agenda" id="t-agenda">Agenda</a><a href="#resumen" id="t-resumen">Resumen</a><a href="#config" id="t-config">Ajustes</a><a href="#" id="salir">Salir</a>
+    </nav>
+  </div>
+</header>
+<p class="status band" id="status" role="status" style="padding-block:10px 0"></p>
+
+<main class="band" style="padding-top:12px">
+  <form class="login ticket" id="login" hidden novalidate>
+    <h3>Entrar</h3>
+    <label for="em">Email</label><input id="em" type="email" autocomplete="email">
+    <label for="pw">Contraseña</label><input id="pw" type="password" autocomplete="current-password">
+    <button class="big" type="submit">Entrar</button>
+    <p class="err" id="lerr" role="alert"></p>
+    <button class="linkbtn" type="button" id="olvide">Me olvidé la contraseña</button>
+  </form>
+
+  <form class="login ticket" id="reset" hidden novalidate>
+    <h3>Nueva contraseña</h3>
+    <label for="np">Contraseña nueva (mínimo 8)</label><input id="np" type="password" autocomplete="new-password">
+    <button class="big" type="submit">Guardar</button>
+    <p class="err" id="rerr" role="alert"></p>
+  </form>
+
+  <!-- FILA VIRTUAL -->
+  <section class="wrap" id="v-fila" hidden>
+    <div class="bar">
+      <div class="daynav"><span class="fsit" id="fsit"></span><button class="ghost" type="button" id="fpausa">Pausar la fila</button></div>
+      <div class="share">Link para anotarse: <code id="flink"></code><button class="ghost" type="button" id="fcopy">Copiar</button></div>
+    </div>
+    <div class="chips" id="fyo" hidden style="margin:6px 0 14px"></div>
+    <div class="cols" style="margin-top:6px">
+      <div class="card ahora" id="fahora"></div>
+      <div><div class="kpis" id="fk" style="margin-top:0"></div>
+        <button class="ghost" type="button" id="fnuevo" style="width:100%;justify-content:center">+ Anotar a alguien que vino al local</button>
+        <form id="fadd" class="card" hidden novalidate style="margin-top:10px">
+          <label for="fa-n">Nombre</label><input id="fa-n" maxlength="60">
+          <label for="fa-t">WhatsApp (opcional)</label><input id="fa-t" type="tel" maxlength="30">
+          <div id="fa-pw"><label for="fa-p">Con</label><select id="fa-p"></select></div>
+          <div class="acts" style="display:flex;gap:8px;margin-top:10px"><button class="ghost ok" type="submit">Anotar</button><button class="ghost" type="button" id="fa-x">Cerrar</button></div>
+        </form>
+      </div>
+    </div>
+    <h3 class="h3" style="margin-top:22px">Esperando</h3>
+    <div class="book" id="flist"></div>
+    <p class="note">«Avisar» abre WhatsApp con el mensaje listo para que el cliente salga para el local (gratis). La espera estimada se calcula sola con el tiempo real de cada atención.</p>
+    <p class="note" id="fpant" hidden></p>
+  </section>
+
+  <!-- AGENDA -->
+  <section class="wrap" id="v-agenda" hidden>
+    <div id="alertas"></div>
+    <div class="bar">
+      <div class="daynav">
+        <button class="ghost" type="button" id="prev" aria-label="Día anterior">‹</button>
+        <button class="ghost" type="button" id="hoy">Hoy</button>
+        <button class="ghost" type="button" id="next" aria-label="Día siguiente">›</button>
+        <input type="date" id="fecha" aria-label="Elegir fecha">
+      </div>
+      <div class="share">Link para clientes: <code id="link"></code><button class="ghost" type="button" id="copy">Copiar</button></div>
+    </div>
+    <h2 id="dtitle" class="dtitle"></h2>
+    <div class="chips" id="proSel" hidden style="margin-top:12px"></div>
+    <div class="kpis" id="kpis"></div>
+    <div class="book" id="book"></div>
+    <div class="bar" style="margin-top:14px">
+      <div class="acts"><button class="ghost" type="button" id="cerrar">Bloquear lo que queda libre</button><button class="ghost" type="button" id="abrir" hidden>Quitar bloqueos del día</button></div>
+    </div>
+    <p class="note">«+ Turno» carga a alguien que llamó o vino sin turno. «Recordar» abre WhatsApp con el mensaje listo (gratis). Marcar «Asistió» o «No vino» alimenta el resumen del mes.</p>
+  </section>
+
+  <!-- RESUMEN -->
+  <section class="wrap" id="v-resumen" hidden>
+    <div class="bar">
+      <div class="daynav"><button class="ghost" type="button" id="mprev" aria-label="Mes anterior">‹</button><h2 id="mtitle" class="dtitle" style="margin:0 8px"></h2><button class="ghost" type="button" id="mnext" aria-label="Mes siguiente">›</button></div>
+      <button class="ghost" type="button" id="csv">Descargar planilla (CSV)</button>
+    </div>
+    <div class="kpis k4" id="rk"></div>
+    <div class="cols">
+      <div><h3 class="h3">Servicios más pedidos</h3><div id="rsrv"></div></div>
+      <div><h3 class="h3">Días con más movimiento</h3><div id="rdias"></div></div>
+    </div>
+    <div class="cols">
+      <div><h3 class="h3">Clientes frecuentes</h3><div id="rfrec"></div><div class="lock" id="lk-frec" hidden></div></div>
+      <div><h3 class="h3">Para recuperar <small>no vienen hace más de 30 días</small></h3><div id="rrec"></div><div class="lock" id="lk-rec" hidden></div></div>
+    </div>
+    <div id="rfila-w" hidden>
+      <h3 class="h3" style="margin-top:22px">Fila virtual</h3>
+      <div class="kpis" id="rfila" style="margin-top:0"></div>
+    </div>
+    <div class="cols" id="rpro-w" hidden>
+      <div><h3 class="h3">Por profesional <small>turnos atendidos</small></h3><div id="rpro"></div></div>
+      <div><h3 class="h3">Por profesional <small>facturado</small></h3><div id="rprop"></div></div>
+    </div>
+  </section>
+
+  <!-- CONFIGURACION -->
+  <section class="wrap" id="v-config" hidden>
+    <div class="cols">
+      <form id="cfg-datos" class="card" novalidate>
+        <h3 class="h3">Datos del comercio</h3>
+        <label for="c-nombre">Nombre</label><input id="c-nombre" maxlength="60" required>
+        <label for="c-wa">WhatsApp del local</label><input id="c-wa" type="tel" placeholder="Ej: 2941 123456">
+        <label for="c-dir">Dirección</label><input id="c-dir" maxlength="120">
+        <div id="marca">
+        <label for="c-msg">Aviso para clientes</label><input id="c-msg" maxlength="160" placeholder="Ej: Solo efectivo y transferencia">
+        <label for="c-color">Color</label><input id="c-color" type="color" class="color">
+        </div><div class="lock" id="lk-marca" hidden></div>
+        <h3 class="h3" style="margin-top:20px">Reglas de reserva</h3>
+        <label for="c-int">Cada cuánto empiezan los turnos</label><select id="c-int"></select>
+        <label for="c-ant">Anticipación mínima para reservar</label><select id="c-ant"></select>
+        <label for="c-can">El cliente puede cancelar hasta</label><select id="c-can"></select>
+        <label for="c-dias">Días hacia adelante que se pueden reservar</label><input id="c-dias" type="number" min="1" max="90">
+        <button class="big" type="submit">Guardar datos</button>
+      </form>
+      <form id="cfg-hor" class="card" novalidate>
+        <h3 class="h3">Horarios de atención</h3>
+        <div id="hor"></div>
+        <button class="big" type="submit">Guardar horarios</button>
+        <p class="note">Para un feriado o vacaciones, no cambies esto: andá a la agenda de ese día y tocá «Bloquear lo que queda libre».</p>
+      </form>
+    </div>
+    <div class="card" style="margin-top:24px">
+      <div class="bar"><h3 class="h3" style="margin:0">Servicios</h3><button class="ghost" type="button" id="addsrv">+ Agregar servicio</button></div>
+      <div id="srvs"></div>
+      <p class="note">Si dejás de ofrecer un servicio, destildá «Activo» en vez de borrarlo: así no se pierde en el historial.</p>
+    </div>
+    <form class="card" id="cfg-modo" style="margin-top:24px" novalidate>
+      <h3 class="h3">Cómo atendés</h3>
+      <div class="modos-cfg">
+        <label class="chk"><input type="radio" name="modo" value="turnos"> Con turnos</label>
+        <label class="chk"><input type="radio" name="modo" value="fila"> Por orden de llegada (fila virtual)</label>
+        <label class="chk" id="modo-ambos"><input type="radio" name="modo" value="ambos"> Las dos cosas (ej.: turnos en la semana, fila los sábados)</label>
+      </div>
+      <div class="lock" id="lk-ambos" hidden></div>
+      <div id="fila-cfg">
+        <div class="cols" style="margin-top:6px;gap:16px">
+          <div><label for="c-fmax">Máximo de personas esperando</label><input id="c-fmax" type="number" min="1" max="200"></div>
+          <div><label for="c-fmin">Minutos por persona (al principio)</label><input id="c-fmin" type="number" min="3" max="240"></div>
+        </div>
+        <label for="c-fcie">Dejar de anotar antes del cierre</label><select id="c-fcie"></select>
+      </div>
+      <button class="big" type="submit">Guardar</button>
+      <p class="note">La fila se abre y se cierra sola según tus horarios de atención. «Minutos por persona» se usa hasta que el sistema aprende tu tiempo real (después de 5 atenciones).</p>
+    </form>
+    <div class="card" style="margin-top:24px">
+      <div class="bar"><h3 class="h3" style="margin:0">Profesionales</h3><button class="ghost" type="button" id="addpro">+ Agregar profesional</button></div>
+      <div id="pros"></div><div class="lock" id="lk-pros" hidden></div>
+      <p class="note">Si trabajás solo, no cargues a nadie: hay una sola agenda. Con dos o más, cada uno tiene su agenda y el cliente puede elegir con quién (o «Cualquiera»).</p>
+    </div>
+    <form class="card" id="cfg-mp" style="margin-top:24px" novalidate>
+      <h3 class="h3">Seña con Mercado Pago</h3>
+      <div class="lock" id="lk-mp" hidden></div>
+      <div id="mp-body">
+      <p class="muted" id="mp-estado"></p>
+      <label for="c-sena">Monto de la seña ($, 0 = no pedir seña)</label><input id="c-sena" type="number" min="0" step="100" inputmode="numeric">
+      <label for="c-mptok">Access Token de producción de Mercado Pago</label><input id="c-mptok" type="password" autocomplete="off" placeholder="APP_USR-…">
+      <div class="acts" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px"><button class="big" type="submit" style="width:auto;flex:1;margin:0">Guardar</button><button class="ghost danger" type="button" id="mp-off" hidden>Desconectar Mercado Pago</button></div>
+      <p class="note">El token se saca en mercadopago.com.ar/developers → Tus integraciones → Crear aplicación (Checkout Pro) → Credenciales de producción. Queda guardado en secreto: ni vos lo podés volver a ver. Con seña, el turno queda 15 minutos esperando el pago y, si no se paga, se libera solo. Mercado Pago cobra su comisión por cada pago.</p>
+      </div>
+    </form>
+    <div class="card" style="margin-top:24px">
+      <div class="bar"><h3 class="h3" style="margin:0">Cartel con QR para el mostrador</h3><button class="ghost" type="button" id="print">Imprimir cartel</button></div>
+      <div id="poster" class="poster"><b id="p-name"></b><span>Sacá tu turno desde el celular</span><div id="qr"></div><code id="p-link"></code></div>
+    </div>
+  </section>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="config.js"></script>
+<script src="comun.js"></script>
+<script>
+{
+const C=window.TURNOS_CONFIG, U=window.TU;
+const {$,esc,money,pad,dk,hm,toMin,DIAS,MES,DIAL,waAR}=U;
+const sb=supabase.createClient(C.SUPABASE_URL,C.SUPABASE_ANON_KEY);
+const status=(t,good)=>{const s=$('#status');s.textContent=t||'';s.classList.toggle('good',!!good);if(good)setTimeout(()=>{if(s.textContent===t)s.textContent=''},3500)};
+const DIAN=['','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'];
+let NEG=null,SRV=[],TUR=[],PROS=[],selPro=null,agDay=dk(new Date()),formAt=null,LINK='';
+let resMonth=new Date();resMonth.setDate(1);resMonth.setHours(0,0,0,0);
+let RES=[];
+
+const srvById=id=>SRV.find(s=>s.id===id);
+const proById=id=>PROS.find(p=>p.id===id);
+const PLAN={agenda:{n:'Agenda',pros:1},equipo:{n:'Equipo',pros:5},full:{n:'Full con seña',pros:1000}};
+const plan=()=>PLAN[NEG.plan]||PLAN.agenda;
+const tiene=f=>({marca:['equipo','full'],recuperar:['equipo','full'],equipo:['equipo','full'],sena:['full']})[f].includes(NEG.plan);
+const mejorar=(que,plan)=>{const t=`Hola! Soy de ${NEG.nombre} y quiero pasar al plan ${plan} para tener ${que}.`;return `<b>${que[0].toUpperCase()+que.slice(1)}</b> está disponible desde el plan ${plan}. ${C.SOPORTE_WHATSAPP?`<a href="https://wa.me/${C.SOPORTE_WHATSAPP}?text=${encodeURIComponent(t)}" target="_blank" rel="noopener">Mejorar plan</a>`:''}`};
+function lock(id,on,que,plan){const el=$('#'+id);el.hidden=!on;if(on)el.innerHTML=mejorar(que,plan)}
+const activos=()=>PROS.filter(p=>p.activo).slice(0,plan().pros);
+const dow=k=>U.pday(k).getDay()||7;
+const proWorks=(p,k)=>!p.dias||p.dias.includes(dow(k));
+const vis=t=>!activos().length||t.profesional_id===selPro||t.profesional_id==null;
+const blocks=k=>(NEG.horarios[String(U.pday(k).getDay()||7)]||[]).map(([a,b])=>[toMin(a),toMin(b)]);
+const at=(k,m)=>new Date(`${k}T${hm(m)}:00${C.TZ_OFFSET}`);
+const minOf=d=>{const x=new Date(d);return x.getHours()*60+x.getMinutes()};
+const addDays=(k,n)=>{const d=U.pday(k);d.setDate(d.getDate()+n);return dk(d)};
+const fday=k=>{const d=U.pday(k);return DIAL[d.getDay()]+' '+d.getDate()+' de '+MES[d.getMonth()]};
+const priceOf=t=>t.precio??(srvById(t.servicio_id)?.precio||0);
+const dbErr=(e,def)=>{console.error(e);if(e&&e.code==='23P01')return 'Se superpone con otro turno o bloqueo.';if(e&&/modo_no_incluido/.test(e.message||''))return 'Atender con turnos y fila a la vez está disponible desde el plan Equipo.';if(e&&/limite_profesionales/.test(e.message||''))return `Tu plan permite hasta ${plan().pros} ${plan().pros===1?'profesional activo':'profesionales activos'}.`;return def||'No se pudo guardar. Probá de nuevo.'};
+function armed(b,label){if(b.dataset.armed)return true;b.dataset.armed='1';const old=b.textContent;b.textContent=label||'¿Seguro?';setTimeout(()=>{if(b.isConnected){delete b.dataset.armed;b.textContent=old}},3000);return false}
+
+/* ---------- Navegación ---------- */
+const VIEWS=['fila','agenda','resumen','config'];
+function tabs(){
+  const m=NEG.modo||'turnos';
+  $('#t-fila').hidden=m==='turnos';$('#t-agenda').hidden=m==='fila';
+}
+function route(){
+  if(!NEG)return;
+  tabs();
+  const m=NEG.modo||'turnos',def=m==='turnos'?'agenda':'fila';
+  let v=VIEWS.includes(location.hash.slice(1))?location.hash.slice(1):def;
+  if((v==='fila'&&m==='turnos')||(v==='agenda'&&m==='fila'))v=def;
+  VIEWS.forEach(x=>{$('#v-'+x).hidden=x!==v;$('#t-'+x).classList.toggle('on',x===v)});
+  if(v==='agenda')loadDay();
+  if(v==='fila')loadFila();
+  if(v==='resumen')loadResumen();
+  if(v==='config')renderConfig();
+}
+addEventListener('hashchange',route);
+
+/* ---------- Agenda ---------- */
+async function loadDay(){
+  await sb.from('turnos').update({estado:'cancelado',cancelado_por:'vencido'}).eq('negocio_id',NEG.id).eq('estado','pendiente_pago').lt('expira',new Date().toISOString());
+  loadAlertas();
+  const s=at(agDay,0),e=at(addDays(agDay,1),0);
+  const {data,error}=await sb.from('turnos').select('id,inicio,fin,nombre,telefono,estado,servicio_id,precio,origen,notas,profesional_id,sena,expira')
+    .eq('negocio_id',NEG.id).neq('estado','cancelado').gte('inicio',s.toISOString()).lt('inicio',e.toISOString()).order('inicio');
+  if(error){console.error(error);status('No se pudo leer la agenda. Revisá la conexión.');return}
+  TUR=data;renderDay();
+}
+function rowFree(m,past){
+  if(formAt===m)return `<form class="row nf" data-m="${m}"><time>${hm(m)}</time><div class="nfi">
+    <select name="s" aria-label="Servicio">${SRV.filter(s=>s.activo).map(s=>`<option value="${s.id}">${esc(s.nombre)} · ${s.duracion_min} min</option>`).join('')}</select>
+    <input name="n" placeholder="Nombre" maxlength="60" aria-label="Nombre"><input name="t" type="tel" placeholder="WhatsApp (opcional)" maxlength="30" aria-label="WhatsApp"></div>
+    <div class="acts"><button class="ghost ok" type="submit">Guardar</button><button class="ghost" type="button" data-act="nfx">Cerrar</button></div></form>`;
+  return `<div class="row free"><time>${hm(m)}</time><div class="who">Libre</div><div class="acts"><button class="ghost" data-act="nuevo" data-m="${m}">+ Turno</button>${past?'':`<button class="ghost" data-act="block" data-m="${m}">Bloquear</button>`}</div></div>`;
+}
+function rowTurno(t,m){
+  const sv=srvById(t.servicio_id),ini=minOf(t.inicio);
+  if(t.estado==='bloqueado')return `<div class="row blk"><time>${hm(m)}</time><div class="who">Bloqueado</div><div class="acts"><button class="ghost" data-act="unblock" data-id="${t.id}">Liberar</button></div></div>`;
+  const future=new Date(t.inicio)>new Date();
+  const txt=`Hola ${t.nombre}! Te recordamos tu turno en ${NEG.nombre} el ${fday(agDay)} a las ${hm(ini)} hs. Si no podés venir, avisanos por acá.`;
+  const wa=t.telefono&&future?`<a class="ghost" href="https://wa.me/${waAR(t.telefono)}?text=${encodeURIComponent(txt)}" target="_blank" rel="noopener">Recordar</a>`:'';
+  let badge='',acts='';
+  const sena=t.sena?` <em class="tag ok">Seña ${money(t.sena)}</em>`:'';
+  if(t.estado==='pendiente_pago'){badge='<em class="tag">Esperando seña</em>';acts=`<button class="ghost danger" data-act="cancel" data-id="${t.id}">Cancelar</button>`}
+  else if(t.estado==='reservado')acts=`${wa}<button class="ghost ok" data-act="asistio" data-id="${t.id}">Asistió</button><button class="ghost" data-act="ausente" data-id="${t.id}">No vino</button><button class="ghost danger" data-act="cancel" data-id="${t.id}">Cancelar</button>`;
+  else{badge=(t.estado==='completado'?'<em class="tag ok">Asistió</em>':'<em class="tag bad">No vino</em>');acts=`<button class="ghost" data-act="deshacer" data-id="${t.id}">Deshacer</button>`}
+  return `<div class="row res ${t.estado}"><time>${hm(ini)}</time><div class="who"><b>${esc(t.nombre)} ${badge}${sena}${t.origen==='local'?' <em class="tag">cargado</em>':''}</b><span>${esc(sv?sv.nombre:'Servicio')} · ${money(priceOf(t))}${t.sena?' (resta '+money(Math.max(0,priceOf(t)-t.sena))+')':''}${t.telefono?' · '+esc(t.telefono):''}</span></div><div class="acts">${acts}</div></div>`;
+}
+function renderDay(){
+  $('#fecha').value=agDay;
+  $('#dtitle').textContent=(agDay===dk(new Date())?'Hoy, ':'')+fday(agDay);
+  const act=activos();
+  if(act.length&&!act.some(p=>p.id===selPro))selPro=act[0].id;
+  $('#proSel').hidden=act.length<2;
+  $('#proSel').innerHTML=act.map(p=>{const c=TUR.filter(t=>t.profesional_id===p.id&&!['bloqueado','ausente'].includes(t.estado)).length;return `<button type="button" class="chip ${p.id===selPro?'on':''}" data-p="${p.id}">${esc(p.nombre)}<small>${c}</small></button>`}).join('');
+  const pro=proById(selPro),off=act.length&&pro&&!proWorks(pro,agDay);
+  const T=TUR.filter(vis);
+  const step=NEG.intervalo,grid=[];
+  if(!off)for(const[a,b]of blocks(agDay))for(let m=a;m+step<=b;m+=step)grid.push(m);
+  const now=Date.now(),shown=new Set();let n=0,plata=0,libres=0;
+  const rows=grid.map(m=>{
+    const s=at(agDay,m).getTime(),e=s+step*60000;
+    const t=T.find(t=>+new Date(t.inicio)<e&&+new Date(t.fin)>s);
+    if(!t){if(e>now)libres++;return rowFree(m,e<now)}
+    if(shown.has(t.id))return t.estado==='bloqueado'?'':`<div class="row res cont"><time>${hm(m)}</time><div class="who">continúa ${esc(t.nombre)}</div><div></div></div>`;
+    shown.add(t.id);return rowTurno(t,m);
+  });
+  const extra=T.filter(t=>!shown.has(t.id)).map(t=>rowTurno(t,minOf(t.inicio)));
+  for(const t of T)if(!['bloqueado','ausente','pendiente_pago'].includes(t.estado)){n++;plata+=Math.max(0,priceOf(t)-(t.sena||0))}
+  $('#kpis').innerHTML=`<div><b>${n}</b><span>turnos</span></div><div><b>${money(plata)}</b><span>a cobrar</span></div><div><b>${libres}</b><span>horarios libres</span></div>`;
+  $('#book').innerHTML=grid.length||extra.length?rows.join('')+(extra.length?'<p class="muted" style="padding:10px 0 0">Fuera del horario de atención:</p>'+extra.join(''):''):(off?`<p class="muted" style="padding:16px 0">${esc(pro.nombre)} no trabaja este día. Podés cambiarlo en Ajustes.</p>`:'<p class="muted" style="padding:16px 0">Cerrado ese día. Podés cambiar los horarios en Ajustes.</p>');
+  $('#abrir').hidden=!TUR.some(t=>t.estado==='bloqueado');
+  $('#cerrar').hidden=!blocks(agDay).length;
+  $('#cerrar').textContent=act.length>1?'Bloquear lo que queda libre (todo el local)':'Bloquear lo que queda libre';
+  const f=$('#book form.nf input[name=n]');if(f)f.focus();
+}
+async function loadAlertas(){
+  const {data}=await sb.from('turnos').select('id,inicio,nombre,telefono,sena,notas').eq('negocio_id',NEG.id).eq('estado','cancelado').not('mp_pago_id','is',null).gte('inicio',new Date(Date.now()-60*864e5).toISOString()).order('inicio').limit(20);
+  const list=(data||[]).filter(t=>t.sena&&!/revisad/i.test(t.notas||''));
+  $('#alertas').innerHTML=list.length?`<div class="alerta"><h3>Señas cobradas de turnos cancelados o vencidos</h3>${list.map(t=>`<div><span><b>${esc(t.nombre)}</b> · ${fday(dk(new Date(t.inicio)))} ${hm(minOf(t.inicio))} · ${money(t.sena)}</span><span class="acts">${t.telefono?`<a class="ghost sm" href="https://wa.me/${waAR(t.telefono)}" target="_blank" rel="noopener">Escribirle</a>`:''}<button class="ghost sm" data-rev="${t.id}">Ya lo resolví</button></span></div>`).join('')}<p class="note" style="margin:6px 0 0">Devolvé la seña desde Mercado Pago o reprogramá el turno con «+ Turno».</p></div>`:'';
+}
+$('#alertas').addEventListener('click',async e=>{const b=e.target.closest('[data-rev]');if(!b)return;
+  await sb.from('turnos').update({notas:'Seña revisada'}).eq('id',b.dataset.rev);loadAlertas()});
+
+function goDay(k){agDay=k;formAt=null;loadDay()}
+$('#proSel').addEventListener('click',e=>{const b=e.target.closest('[data-p]');if(!b)return;selPro=b.dataset.p;formAt=null;renderDay()});
+$('#prev').addEventListener('click',()=>goDay(addDays(agDay,-1)));
+$('#next').addEventListener('click',()=>goDay(addDays(agDay,1)));
+$('#hoy').addEventListener('click',()=>goDay(dk(new Date())));
+$('#fecha').addEventListener('change',e=>{if(e.target.value)goDay(e.target.value)});
+
+$('#book').addEventListener('click',async e=>{
+  const b=e.target.closest('button[data-act]');if(!b)return;
+  const act=b.dataset.act,id=b.dataset.id;
+  if(act==='nuevo'){if(!SRV.some(s=>s.activo)){status('Primero cargá al menos un servicio en Ajustes.');return}formAt=Number(b.dataset.m);renderDay();return}
+  if(act==='nfx'){formAt=null;renderDay();return}
+  if(act==='cancel'&&!armed(b))return;
+  b.disabled=true;let r;
+  if(act==='block'){const s=at(agDay,Number(b.dataset.m));r=await sb.from('turnos').insert({negocio_id:NEG.id,profesional_id:activos().length?selPro:null,inicio:s.toISOString(),fin:new Date(+s+NEG.intervalo*60000).toISOString(),nombre:'Bloqueado',estado:'bloqueado',origen:'local'})}
+  if(act==='unblock')r=await sb.from('turnos').delete().eq('id',id);
+  if(act==='cancel')r=await sb.from('turnos').update({estado:'cancelado',cancelado_por:'comercio'}).eq('id',id);
+  if(act==='asistio')r=await sb.from('turnos').update({estado:'completado'}).eq('id',id);
+  if(act==='ausente')r=await sb.from('turnos').update({estado:'ausente'}).eq('id',id);
+  if(act==='deshacer')r=await sb.from('turnos').update({estado:'reservado'}).eq('id',id);
+  if(r&&r.error){status(dbErr(r.error));b.disabled=false;return}
+  if(act==='cancel'){const t=TUR.find(x=>x.id===id);status('Turno cancelado.'+(t&&t.telefono?' Avisale al cliente por WhatsApp.':''),true)}
+  loadDay();
+});
+$('#book').addEventListener('submit',async e=>{
+  e.preventDefault();const f=e.target;
+  const s=srvById(f.s.value),nombre=f.n.value.trim(),tel=f.t.value.trim();
+  if(nombre.length<2){status('Poné el nombre del cliente.');f.n.focus();return}
+  const ini=at(agDay,Number(f.dataset.m));
+  f.querySelector('[type=submit]').disabled=true;
+  const {error}=await sb.from('turnos').insert({negocio_id:NEG.id,profesional_id:activos().length?selPro:null,servicio_id:s.id,inicio:ini.toISOString(),fin:new Date(+ini+s.duracion_min*60000).toISOString(),nombre,telefono:tel||null,precio:s.precio,origen:'local'});
+  if(error){status(dbErr(error));f.querySelector('[type=submit]').disabled=false;return}
+  formAt=null;status('Turno cargado.',true);loadDay();
+});
+$('#cerrar').addEventListener('click',async e=>{
+  const b=e.currentTarget;if(!armed(b,'¿Bloquear todo lo libre?'))return;
+  const gaps=[];
+  const quienes=activos().length?activos().filter(p=>proWorks(p,agDay)).map(p=>p.id):[null];
+  for(const pid of quienes)for(const[a,z]of blocks(agDay)){
+    let cur=Math.max(+at(agDay,a),agDay===dk(new Date())?Date.now():0);const end=+at(agDay,z);
+    const busy=TUR.filter(t=>pid===null||t.profesional_id===pid||t.profesional_id==null).map(t=>[+new Date(t.inicio),+new Date(t.fin)]).filter(([s,f])=>f>cur&&s<end).sort((x,y)=>x[0]-y[0]);
+    for(const[s,f]of busy){if(s>cur)gaps.push([cur,s,pid]);cur=Math.max(cur,f)}
+    if(cur<end)gaps.push([cur,end,pid]);
+  }
+  if(!gaps.length){status('No queda nada libre ese día.');return}
+  const {error}=await sb.from('turnos').insert(gaps.map(([s,f,pid])=>({negocio_id:NEG.id,profesional_id:pid,inicio:new Date(s).toISOString(),fin:new Date(f).toISOString(),nombre:'Bloqueado',estado:'bloqueado',origen:'local'})));
+  if(error){status(dbErr(error));return}
+  status('Día bloqueado. Los turnos que ya estaban siguen en pie.',true);loadDay();
+});
+$('#abrir').addEventListener('click',async()=>{
+  const ids=TUR.filter(t=>t.estado==='bloqueado').map(t=>t.id);
+  const {error}=await sb.from('turnos').delete().in('id',ids);
+  if(error){status(dbErr(error));return}
+  status('Bloqueos quitados.',true);loadDay();
+});
+$('#copy').addEventListener('click',async()=>{try{await navigator.clipboard.writeText(LINK);$('#copy').textContent='¡Copiado!'}catch{$('#copy').textContent='Copialo a mano'}setTimeout(()=>$('#copy').textContent='Copiar',2500)});
+
+/* ---------- Fila virtual ---------- */
+let FIL=[],FEST=null,fyo=null,armQ=null,armT=null;
+try{fyo=localStorage.getItem('fila:yo')}catch(e){}
+const hace=d=>{const m=Math.max(0,Math.round((Date.now()-new Date(d))/60000));return m<60?`${m} min`:`${Math.floor(m/60)} h ${m%60} min`};
+const durTxt=m=>m<60?`${m} min`:`${Math.floor(m/60)} h${m%60?' '+m%60+' min':''}`;
+async function loadFila(){
+  const [f,e]=await Promise.all([
+    sb.from('fila').select('*').eq('negocio_id',NEG.id).eq('dia',dk(new Date())).order('creado'),
+    sb.rpc('fila_estado',{p_slug:NEG.slug})]);
+  if(f.error){console.error(f.error);status('No se pudo leer la fila.');return}
+  FIL=f.data;FEST=e.data||null;renderFila();
+}
+function renderFila(){
+  const act=activos();
+  if(act.length>=2&&!act.some(p=>p.id===fyo))fyo=null;
+  $('#fyo').hidden=act.length<2;
+  $('#fyo').innerHTML='<span class="muted" style="align-self:center">Atiendo yo:</span>'+act.map(p=>`<button type="button" class="chip ${fyo===p.id?'on':''}" data-yo="${p.id}">${esc(p.nombre)}</button>`).join('');
+  const SIT={abierta:'<b class="ok-t">Fila abierta</b>',pausada:'<b>Fila pausada</b>',cerrada:'<b>Fila cerrada</b> (fuera de horario)',llena:'<b>Fila completa</b>'};
+  $('#fsit').innerHTML=FEST?SIT[FEST.situacion]||'':'';
+  $('#fpausa').textContent=NEG.fila_pausada?'Reanudar la fila':'Pausar la fila';
+  const esp=FIL.filter(x=>x.estado==='esperando'),ate=FIL.filter(x=>x.estado==='atendiendo'),hechos=FIL.filter(x=>x.estado==='atendido');
+  const pn=id=>proById(id)?.nombre;
+  const mios=act.length>=2?ate.filter(x=>x.profesional_id===fyo):ate;
+  const otros=act.length>=2?ate.filter(x=>x.profesional_id!==fyo):[];
+  const necesitaYo=act.length>=2&&!fyo;
+  $('#fahora').innerHTML=`<h3 class="h3">Atendiendo ahora</h3>${mios.length?mios.map(x=>`<div class="ahora-p"><div><b class="anum">${x.numero}</b> <b>${esc(x.nombre)}</b><span class="muted"> · hace ${hace(x.inicio_at||x.creado)}</span></div><div class="acts"><button class="ghost ok" data-fa="fin" data-id="${x.id}">Terminé</button><button class="ghost" data-fa="aus" data-id="${x.id}">No vino</button></div></div>`).join(''):'<p class="muted">Nadie por ahora.</p>'}
+    ${otros.length?`<p class="muted" style="margin:8px 0 0">${otros.map(x=>`${esc(pn(x.profesional_id)||'Otro')}: #${x.numero} ${esc(x.nombre)}`).join(' · ')}</p>`:''}
+    <button class="big" type="button" id="fsig" ${necesitaYo?'disabled':''}>${necesitaYo?'Elegí arriba quién sos':mios.length?'Terminé y llamo al siguiente':'Llamar al siguiente'}</button>`;
+  $('#fk').innerHTML=`<div><b>${esp.length}</b><span>esperando</span></div><div><b>${FEST?durTxt(FEST.espera_min):'—'}</b><span>espera para el que llega</span></div><div><b>${hechos.length}</b><span>atendidos hoy</span></div>`;
+  $('#flist').innerHTML=esp.length?esp.map((x,i)=>{
+    const falta=i===0?'sos el próximo':`te ${i===1?'falta 1 persona':'faltan '+i+' personas'}`;
+    const txt=`Hola ${x.nombre}! En ${NEG.nombre} ya ${falta}. Andá viniendo así no perdés el lugar.`;
+    return `<div class="row res"><time>${i+1}°</time><div class="who"><b><span class="anum sm">${x.numero}</span> ${esc(x.nombre)}${x.avisado_at?' <em class="tag ok">Avisado</em>':''}${x.origen==='local'?' <em class="tag">en el local</em>':''}</b><span>${x.profesional_id?'Con '+esc(pn(x.profesional_id)||'—')+' · ':''}esperando hace ${hace(x.creado)}${x.telefono?' · '+esc(x.telefono):''}</span></div><div class="acts">${x.telefono?`<a class="ghost" data-fa="avisar" data-id="${x.id}" href="https://wa.me/${waAR(x.telefono)}?text=${encodeURIComponent(txt)}" target="_blank" rel="noopener">Avisar</a>`:''}<button class="ghost danger" data-fa="quitar" data-id="${x.id}">${armQ===x.id?'¿Quitar?':'Quitar'}</button></div></div>`}).join(''):'<p class="muted" style="padding:14px 0">No hay nadie esperando.</p>';
+  const pu=LINK.replace(/\?n=.*$/,'')+'pantalla.html?n='+encodeURIComponent(NEG.slug);
+  $('#fpant').hidden=!NEG.pantalla;if(NEG.pantalla)$('#fpant').innerHTML=`Pantalla para la tele del local: <a href="${esc(pu)}" target="_blank" rel="noopener">abrir pantalla</a> (abrila en la tele o tablet y tocá «Pantalla completa»).`;
+  $('#fa-pw').hidden=act.length<2;
+  $('#fa-p').innerHTML='<option value="">El primero que se libere</option>'+act.map(p=>`<option value="${p.id}">${esc(p.nombre)}</option>`).join('');
+}
+$('#fyo').addEventListener('click',e=>{const b=e.target.closest('[data-yo]');if(!b)return;fyo=b.dataset.yo;try{localStorage.setItem('fila:yo',fyo)}catch(e){}renderFila()});
+$('#fahora').addEventListener('click',async e=>{
+  const b=e.target.closest('button');if(!b)return;
+  if(b.id==='fsig'){b.disabled=true;
+    const {data:id,error}=await sb.rpc('fila_siguiente',{p_profesional:activos().length>=2?fyo:(activos()[0]?.id??null)});
+    if(error){status(dbErr(error));b.disabled=false;return}
+    if(!id)status('No hay nadie esperando.',true);
+    return loadFila();}
+  const id=b.dataset.id;if(!id)return;b.disabled=true;
+  const patch=b.dataset.fa==='fin'?{estado:'atendido',fin_at:new Date().toISOString()}:{estado:'ausente',fin_at:new Date().toISOString()};
+  const {error}=await sb.from('fila').update(patch).eq('id',id);
+  if(error){status(dbErr(error));b.disabled=false;return}
+  loadFila();
+});
+$('#flist').addEventListener('click',async e=>{
+  const b=e.target.closest('[data-fa]');if(!b)return;const id=b.dataset.id;
+  if(b.dataset.fa==='avisar'){sb.from('fila').update({avisado_at:new Date().toISOString()}).eq('id',id).then(()=>loadFila());return}
+  if(armQ!==id){armQ=id;b.textContent='¿Quitar?';clearTimeout(armT);armT=setTimeout(()=>{armQ=null;renderFila()},3000);return}
+  armQ=null;clearTimeout(armT);
+  const {error}=await sb.from('fila').update({estado:'cancelado'}).eq('id',id);
+  if(error){status(dbErr(error));return}
+  loadFila();
+});
+$('#fpausa').addEventListener('click',()=>saveNeg({fila_pausada:!NEG.fila_pausada},NEG.fila_pausada?'Fila reanudada.':'Fila pausada: nadie nuevo se puede anotar.').then(loadFila));
+$('#fcopy').addEventListener('click',async()=>{try{await navigator.clipboard.writeText(LINK);$('#fcopy').textContent='¡Copiado!'}catch{$('#fcopy').textContent='Copialo a mano'}setTimeout(()=>$('#fcopy').textContent='Copiar',2500)});
+$('#fnuevo').addEventListener('click',()=>{$('#fadd').hidden=false;$('#fnuevo').hidden=true;$('#fa-n').focus()});
+$('#fa-x').addEventListener('click',()=>{$('#fadd').hidden=true;$('#fnuevo').hidden=false});
+$('#fadd').addEventListener('submit',async e=>{e.preventDefault();
+  const n=$('#fa-n').value.trim();if(n.length<2){status('Poné el nombre.');return}
+  const {error}=await sb.rpc('fila_agregar',{p_nombre:n,p_telefono:$('#fa-t').value.trim()||null,p_profesional:$('#fa-p').value||null});
+  if(error){status(dbErr(error));return}
+  $('#fadd').reset();$('#fadd').hidden=true;$('#fnuevo').hidden=false;status('Anotado en la fila.',true);loadFila();
+});
+
+/* ---------- Resumen ---------- */
+const bars=(arr,fmt)=>{const max=Math.max(1,...arr.map(x=>x[1]));return arr.length?arr.map(([l,v,x])=>`<div class="hb"><span>${l}</span><div><i style="width:${Math.max(3,v/max*100)}%"></i></div><b>${fmt?fmt(v):v}</b>${x||''}</div>`).join(''):'<p class="muted">Todavía no hay datos.</p>'};
+async function loadResumen(){
+  const s=new Date(resMonth),e=new Date(s);e.setMonth(e.getMonth()+1);
+  $('#mtitle').textContent=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][s.getMonth()]+' '+s.getFullYear();
+  const h0=new Date(Date.now()-180*864e5),h1=new Date(Date.now()+90*864e5);
+  const [m,h]=await Promise.all([
+    sb.from('turnos').select('inicio,nombre,telefono,estado,servicio_id,precio,origen,cancelado_por,profesional_id,sena').eq('negocio_id',NEG.id).neq('estado','bloqueado').gte('inicio',s.toISOString()).lt('inicio',e.toISOString()).order('inicio').limit(5000),
+    sb.from('turnos').select('inicio,nombre,telefono,estado').eq('negocio_id',NEG.id).in('estado',['reservado','completado']).gte('inicio',h0.toISOString()).lt('inicio',h1.toISOString()).limit(10000)]);
+  if(m.error||h.error){console.error(m.error||h.error);status('No se pudo cargar el resumen.');return}
+  const [fm,fh]=await Promise.all([
+    sb.from('fila').select('nombre,telefono,estado,creado,inicio_at,fin_at').eq('negocio_id',NEG.id).gte('dia',dk(s)).lt('dia',dk(e)).limit(10000),
+    sb.from('fila').select('nombre,telefono,creado').eq('negocio_id',NEG.id).eq('estado','atendido').gte('creado',h0.toISOString()).limit(10000)]);
+  const FM=fm.data||[],FH=fh.data||[];
+  $('#rfila-w').hidden=!FM.length&&(NEG.modo||'turnos')==='turnos';
+  {const at=FM.filter(x=>x.estado==='atendido'),w=FM.filter(x=>x.inicio_at).map(x=>(new Date(x.inicio_at)-new Date(x.creado))/60000),
+    d=FM.filter(x=>x.inicio_at&&x.fin_at).map(x=>(new Date(x.fin_at)-new Date(x.inicio_at))/60000),avg=a=>a.length?Math.round(a.reduce((x,y)=>x+y,0)/a.length):null;
+   $('#rfila').innerHTML=`<div><b>${at.length}</b><span>atendidos por fila</span></div><div><b>${avg(w)!=null?durTxt(avg(w)):'—'}</b><span>espera promedio</span></div><div><b>${avg(d)!=null?durTxt(avg(d)):'—'}</b><span>por persona</span></div><div><b>${FM.filter(x=>['ausente','cancelado'].includes(x.estado)).length}</b><span>se fueron o no vinieron</span></div>`;}
+  RES=m.data;const now=new Date();
+  const val=RES.filter(t=>t.estado!=='cancelado');
+  const done=val.filter(t=>t.estado==='completado'||(t.estado==='reservado'&&new Date(t.inicio)<now));
+  const fut=val.filter(t=>t.estado==='reservado'&&new Date(t.inicio)>=now);
+  const aus=RES.filter(t=>t.estado==='ausente').length,marc=RES.filter(t=>t.estado==='completado').length;
+  const canc=RES.filter(t=>t.estado==='cancelado').length;
+  const sum=a=>a.reduce((x,t)=>x+priceOf(t),0);
+  $('#rk').innerHTML=`<div><b>${done.length}</b><span>atendidos</span></div><div><b>${money(sum(done))}</b><span>facturado</span></div><div><b>${money(sum(fut))}</b><span>por venir (${fut.length})</span></div><div><b>${aus+marc?Math.round(aus/(aus+marc)*100)+'%':'—'}</b><span>no vinieron · ${canc} cancelados</span></div>`;
+  const bySrv={};for(const t of val.filter(t=>t.estado!=='ausente')){const n=srvById(t.servicio_id)?.nombre||'Otro';bySrv[n]=(bySrv[n]||0)+1}
+  $('#rsrv').innerHTML=bars(Object.entries(bySrv).sort((a,b)=>b[1]-a[1]).map(([k,v])=>[esc(k),v]));
+  const byDay=[0,0,0,0,0,0,0];for(const t of val)byDay[(new Date(t.inicio).getDay()+6)%7]++;
+  $('#rdias').innerHTML=bars(byDay.map((v,i)=>[DIAN[i+1],v]).filter(x=>x[1]));
+  const recOK=tiene('recuperar');
+  $('#rfrec').hidden=!recOK;$('#rrec').hidden=!recOK;lock('lk-frec',!recOK,'clientes frecuentes','Equipo');lock('lk-rec',!recOK,'la lista para recuperar clientes','Equipo');
+  const cl={};
+  for(const t of [...val.filter(t=>t.telefono&&t.estado!=='ausente'),...FM.filter(x=>x.telefono&&x.estado==='atendido')]){const k=waAR(t.telefono);(cl[k]=cl[k]||{n:t.nombre,c:0}).c++}
+  $('#rfrec').innerHTML=bars(Object.values(cl).sort((a,b)=>b.c-a.c).slice(0,8).map(x=>[esc(x.n),x.c]),v=>v+(v===1?' visita':' visitas'));
+  const last={};
+  for(const t of [...h.data,...FH.map(x=>({nombre:x.nombre,telefono:x.telefono,inicio:x.creado}))].filter(t=>t.telefono)){const k=waAR(t.telefono),d=new Date(t.inicio);if(!last[k]||d>last[k].d)last[k]={d,n:t.nombre,c:(last[k]?.c||0)+1};else last[k].c++}
+  $('#rpro-w').hidden=!PROS.length;
+  if(PROS.length){
+    const cnt={},plata={};
+    for(const t of done){const n=proById(t.profesional_id)?.nombre||'Sin asignar';cnt[n]=(cnt[n]||0)+1;plata[n]=(plata[n]||0)+priceOf(t)}
+    $('#rpro').innerHTML=bars(Object.entries(cnt).sort((a,b)=>b[1]-a[1]).map(([k,v])=>[esc(k),v]));
+    $('#rprop').innerHTML=bars(Object.entries(plata).sort((a,b)=>b[1]-a[1]).map(([k,v])=>[esc(k),v]),money);
+  }
+  const lim=Date.now()-30*864e5;
+  const rec=Object.entries(last).filter(([,x])=>+x.d<lim).sort((a,b)=>b[1].c-a[1].c).slice(0,10);
+  $('#rrec').innerHTML=rec.length?rec.map(([k,x])=>{const dd=Math.round((Date.now()-x.d)/864e5);const txt=`Hola ${x.n}! Hace un tiempo que no te vemos por ${NEG.nombre}. Si querés, sacá tu turno acá: ${LINK}`;return `<div class="hb rec"><span>${esc(x.n)}</span><small>hace ${dd} días · ${x.c} ${x.c===1?'visita':'visitas'}</small><a class="ghost" href="https://wa.me/${k}?text=${encodeURIComponent(txt)}" target="_blank" rel="noopener">Escribirle</a></div>`}).join(''):'<p class="muted">Nadie para recuperar por ahora.</p>';
+}
+$('#mprev').addEventListener('click',()=>{resMonth.setMonth(resMonth.getMonth()-1);loadResumen()});
+$('#mnext').addEventListener('click',()=>{resMonth.setMonth(resMonth.getMonth()+1);loadResumen()});
+$('#csv').addEventListener('click',()=>{
+  const q=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
+  const EST={reservado:'Reservado',pendiente_pago:'Esperando seña',completado:'Asistió',ausente:'No vino',cancelado:'Cancelado'};
+  const lines=[['Fecha','Hora','Cliente','Teléfono','Servicio','Profesional','Precio','Seña','Estado','Origen'].map(q).join(';')].concat(RES.map(t=>{const d=new Date(t.inicio);return [dk(d),hm(minOf(d)),t.nombre,t.telefono,srvById(t.servicio_id)?.nombre||'',proById(t.profesional_id)?.nombre||'',priceOf(t),t.sena||'',EST[t.estado]||t.estado,t.origen==='local'?'Cargado en el local':'Web'].map(q).join(';')}));
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['﻿'+lines.join('\r\n')],{type:'text/csv'}));
+  a.download=`turnos-${NEG.slug}-${dk(resMonth).slice(0,7)}.csv`;document.body.appendChild(a);a.click();a.remove();
+});
+
+/* ---------- Configuración ---------- */
+const opts=(list,cur)=>list.map(([v,l])=>`<option value="${v}" ${Number(cur)===v?'selected':''}>${l}</option>`).join('');
+let H={};
+function renderConfig(){
+  $('#c-nombre').value=NEG.nombre;$('#c-wa').value=NEG.whatsapp||'';$('#c-dir').value=NEG.direccion||'';$('#c-msg').value=NEG.mensaje||'';$('#c-color').value=NEG.color||'#b8261d';
+  $('#c-int').innerHTML=opts([[10,'Cada 10 min'],[15,'Cada 15 min'],[20,'Cada 20 min'],[30,'Cada 30 min'],[45,'Cada 45 min'],[60,'Cada 1 hora']],NEG.intervalo);
+  $('#c-ant').innerHTML=opts([[0,'Sin mínimo'],[30,'30 minutos antes'],[60,'1 hora antes'],[120,'2 horas antes'],[1440,'1 día antes']],NEG.anticipacion_min);
+  $('#c-can').innerHTML=opts([[0,'Hasta último momento'],[60,'1 hora antes'],[120,'2 horas antes'],[360,'6 horas antes'],[1440,'1 día antes']],NEG.cancelacion_min);
+  $('#c-dias').value=NEG.dias_reserva;
+  const marca=tiene('marca');$('#marca').hidden=!marca;lock('lk-marca',!marca,'el color propio y el aviso para clientes','Equipo');
+  renderModo();
+  const sena=tiene('sena');$('#mp-body').hidden=!sena;lock('lk-mp',!sena,'la seña con Mercado Pago','Full con seña');
+  H=JSON.parse(JSON.stringify(NEG.horarios||{}));renderHor();renderSrv();renderPros();renderPoster();if(sena)renderMP();
+}
+function renderHor(){
+  $('#hor').innerHTML=[1,2,3,4,5,6,7].map(d=>{const r=H[d]||[];return `<div class="hday" data-d="${d}"><label class="chk"><input type="checkbox" data-h="open" ${r.length?'checked':''}> ${DIAN[d]}</label><div class="hr">${r.length?r.map(([a,b],i)=>`<span class="rng"><input type="time" step="300" value="${a}" data-h="a" data-i="${i}" aria-label="${DIAN[d]} desde"> a <input type="time" step="300" value="${b}" data-h="b" data-i="${i}" aria-label="${DIAN[d]} hasta">${r.length>1?`<button type="button" class="ghost sm" data-h="del" data-i="${i}" aria-label="Quitar franja">Quitar</button>`:''}</span>`).join('')+(r.length<3?`<button type="button" class="ghost sm" data-h="add">+ Franja</button>`:''):'<span class="muted">Cerrado</span>'}</div></div>`}).join('');
+}
+$('#hor').addEventListener('change',e=>{const el=e.target,d=el.closest('.hday').dataset.d;
+  if(el.dataset.h==='open'){H[d]=el.checked?[['09:00','13:00']]:[];renderHor()}
+  if(el.dataset.h==='a')H[d][el.dataset.i][0]=el.value;
+  if(el.dataset.h==='b')H[d][el.dataset.i][1]=el.value;});
+$('#hor').addEventListener('click',e=>{const el=e.target.closest('button[data-h]');if(!el)return;const d=el.closest('.hday').dataset.d;
+  if(el.dataset.h==='add'){const last=H[d][H[d].length-1];H[d].push([last?last[1]>'15:00'?last[1]:'16:00':'16:00','20:00'])}
+  if(el.dataset.h==='del')H[d].splice(Number(el.dataset.i),1);renderHor()});
+$('#cfg-hor').addEventListener('submit',async e=>{e.preventDefault();
+  const out={};
+  for(const d of Object.keys(H)){const r=(H[d]||[]).filter(x=>x[0]&&x[1]).sort((x,y)=>x[0]<y[0]?-1:1);
+    for(let i=0;i<r.length;i++){if(r[i][0]>=r[i][1]){status(`${DIAN[d]}: la hora de cierre tiene que ser después de la de apertura.`);return}if(i&&r[i][0]<r[i-1][1]){status(`${DIAN[d]}: las franjas se superponen.`);return}}
+    if(r.length)out[d]=r}
+  await saveNeg({horarios:out},'Horarios guardados.');
+});
+$('#cfg-datos').addEventListener('submit',async e=>{e.preventDefault();
+  const nombre=$('#c-nombre').value.trim();if(nombre.length<2){status('Poné el nombre del comercio.');return}
+  const w=$('#c-wa').value.replace(/\D/g,'');
+  const dias=Math.min(90,Math.max(1,parseInt($('#c-dias').value)||14));
+  await saveNeg({nombre,whatsapp:w?waAR(w):null,direccion:$('#c-dir').value.trim()||null,mensaje:$('#c-msg').value.trim()||null,color:$('#c-color').value,intervalo:Number($('#c-int').value),anticipacion_min:Number($('#c-ant').value),cancelacion_min:Number($('#c-can').value),dias_reserva:dias},'Datos guardados.');
+});
+async function saveNeg(patch,ok){
+  const {data,error}=await sb.from('negocios').update(patch).eq('id',NEG.id).select().single();
+  if(error){status(dbErr(error));return}
+  NEG=data;applyBrand();renderConfig();status(ok,true);
+}
+function srvRow(s){return `<form class="svc" data-id="${s.id||''}" novalidate>
+  <label>Nombre<input name="nombre" value="${esc(s.nombre||'')}" maxlength="60" required></label>
+  <label class="w2">Descripción<input name="descripcion" value="${esc(s.descripcion||'')}" maxlength="120"></label>
+  <label>Duración<select name="duracion">${[10,15,20,30,40,45,60,75,90,120,150,180,240].map(v=>`<option value="${v}" ${s.duracion_min===v?'selected':''}>${v} min</option>`).join('')}</select></label>
+  <label>Precio $<input name="precio" type="number" min="0" step="100" value="${s.precio??''}" inputmode="numeric"></label>
+  <label>Orden<input name="orden" type="number" value="${s.orden??0}"></label>
+  <label class="chk"><input name="activo" type="checkbox" ${s.activo!==false?'checked':''}> Activo</label>
+  <div class="acts"><button class="ghost ok" type="submit">Guardar</button>${s.id?'<button class="ghost danger" type="button" data-act="del">Borrar</button>':'<button class="ghost" type="button" data-act="x">Descartar</button>'}</div></form>`}
+function renderSrv(){$('#srvs').innerHTML=SRV.length?SRV.map(srvRow).join(''):'<p class="muted">Todavía no hay servicios. Agregá el primero.</p>'}
+$('#addsrv').addEventListener('click',()=>{if($('#srvs form[data-id=""]'))return;const p=$('#srvs p');if(p)p.remove();$('#srvs').insertAdjacentHTML('beforeend',srvRow({duracion_min:30,orden:SRV.length+1}));$('#srvs form[data-id=""] input').focus()});
+$('#srvs').addEventListener('submit',async e=>{e.preventDefault();const f=e.target,id=f.dataset.id;
+  const row={nombre:f.nombre.value.trim(),descripcion:f.descripcion.value.trim()||null,duracion_min:Number(f.duracion.value),precio:Math.max(0,parseInt(f.precio.value)||0),orden:parseInt(f.orden.value)||0,activo:f.activo.checked};
+  if(row.nombre.length<2){status('Poné el nombre del servicio.');return}
+  const r=id?await sb.from('servicios').update(row).eq('id',id):await sb.from('servicios').insert({...row,negocio_id:NEG.id});
+  if(r.error){status(dbErr(r.error));return}
+  await loadSrv();renderSrv();status('Servicio guardado.',true);
+});
+$('#srvs').addEventListener('click',async e=>{const b=e.target.closest('button[data-act]');if(!b)return;const f=b.closest('form');
+  if(b.dataset.act==='x'){f.remove();if(!SRV.length)renderSrv();return}
+  if(!armed(b,'¿Borrar?'))return;
+  const {error}=await sb.from('servicios').delete().eq('id',f.dataset.id);
+  if(error){status(dbErr(error));return}
+  await loadSrv();renderSrv();status('Servicio borrado.',true);
+});
+/* Modo de atención */
+function renderModo(){
+  const f=$('#cfg-modo');
+  f.querySelectorAll('[name=modo]').forEach(r=>r.checked=r.value===(NEG.modo||'turnos'));
+  const amb=tiene('equipo');f.querySelector('[value=ambos]').disabled=!amb;
+  lock('lk-ambos',!amb,'atender con turnos y fila a la vez','Equipo');
+  $('#c-fmax').value=NEG.fila_max??15;$('#c-fmin').value=NEG.fila_min_persona??25;
+  $('#c-fcie').innerHTML=opts([[0,'Hasta el cierre'],[15,'15 minutos antes'],[30,'30 minutos antes'],[45,'45 minutos antes'],[60,'1 hora antes'],[90,'1 hora y media antes']],NEG.fila_cierre_min??30);
+  $('#fila-cfg').hidden=(f.querySelector('[name=modo]:checked')?.value||'turnos')==='turnos';
+}
+$('#cfg-modo').addEventListener('change',e=>{if(e.target.name==='modo')$('#fila-cfg').hidden=e.target.value==='turnos'});
+$('#cfg-modo').addEventListener('submit',async e=>{e.preventDefault();
+  const modo=$('#cfg-modo').querySelector('[name=modo]:checked')?.value||'turnos';
+  await saveNeg({modo,fila_max:Math.min(200,Math.max(1,parseInt($('#c-fmax').value)||15)),fila_min_persona:Math.min(240,Math.max(3,parseInt($('#c-fmin').value)||25)),fila_cierre_min:Number($('#c-fcie').value)},'Guardado.');
+  tabs();
+});
+
+/* Profesionales */
+const DL=['','L','M','M','J','V','S','D'];
+function proRow(p){const d=p.dias||[1,2,3,4,5,6,7];return `<form class="pro" data-id="${p.id||''}" novalidate>
+  <label>Nombre<input name="nombre" value="${esc(p.nombre||'')}" maxlength="40" required></label>
+  <div class="dchk-w"><span style="font-size:13px;font-weight:600">Días que trabaja</span><div class="dchk">${[1,2,3,4,5,6,7].map(i=>`<label><input type="checkbox" name="d${i}" ${d.includes(i)?'checked':''}>${DL[i]}</label>`).join('')}</div></div>
+  <label>Orden<input name="orden" type="number" value="${p.orden??0}"></label>
+  <label class="chk"><input name="activo" type="checkbox" ${p.activo!==false?'checked':''}> Activo</label>
+  <div class="acts" style="display:flex;gap:6px"><button class="ghost ok" type="submit">Guardar</button>${p.id?'<button class="ghost danger" type="button" data-act="del">Borrar</button>':'<button class="ghost" type="button" data-act="x">Descartar</button>'}</div></form>`}
+function renderPros(){
+  const eq=tiene('equipo');
+  $('#addpro').hidden=!eq||PROS.filter(p=>p.activo).length>=plan().pros;
+  lock('lk-pros',!eq,'la agenda por profesional','Equipo');
+  $('#pros').hidden=!eq&&!PROS.length;
+  $('#pros').innerHTML=PROS.length?PROS.map(proRow).join('')+(eq&&plan().pros<1000?`<p class="muted" style="margin:8px 0 0">${PROS.filter(p=>p.activo).length} de ${plan().pros} profesionales activos.</p>`:''):'<p class="muted">Sin profesionales: una sola agenda.</p>';
+}
+$('#addpro').addEventListener('click',()=>{if($('#pros form[data-id=""]'))return;const p=$('#pros p');if(p)p.remove();$('#pros').insertAdjacentHTML('beforeend',proRow({orden:PROS.length+1}));$('#pros form[data-id=""] input').focus()});
+$('#pros').addEventListener('submit',async e=>{e.preventDefault();const f=e.target,id=f.dataset.id;
+  const dias=[1,2,3,4,5,6,7].filter(i=>f['d'+i].checked);
+  const row={nombre:f.nombre.value.trim(),dias:dias.length===7?null:dias,orden:parseInt(f.orden.value)||0,activo:f.activo.checked};
+  if(row.nombre.length<2){status('Poné el nombre del profesional.');return}
+  if(!dias.length){status('Marcá al menos un día.');return}
+  const r=id?await sb.from('profesionales').update(row).eq('id',id):await sb.from('profesionales').insert({...row,negocio_id:NEG.id});
+  if(r.error){status(dbErr(r.error));return}
+  const primero=!id&&!PROS.length;
+  await loadPros();renderPros();
+  status(primero?'Profesional guardado. Los turnos nuevos se van a asignar por profesional; los que ya estaban ocupan a todos.':'Profesional guardado.',true);
+});
+$('#pros').addEventListener('click',async e=>{const b=e.target.closest('button[data-act]');if(!b)return;const f=b.closest('form');
+  if(b.dataset.act==='x'){f.remove();if(!PROS.length)renderPros();return}
+  if(!armed(b,'¿Borrar?'))return;
+  const {error}=await sb.from('profesionales').delete().eq('id',f.dataset.id);
+  if(error){status(dbErr(error));return}
+  await loadPros();renderPros();status('Profesional borrado. Sus turnos quedan en la agenda general.',true);
+});
+async function loadPros(){const {data}=await sb.from('profesionales').select('*').eq('negocio_id',NEG.id).order('orden').order('nombre');PROS=data||[]}
+
+/* Mercado Pago */
+let MPON=false;
+async function renderMP(){
+  $('#c-sena').value=NEG.sena_monto||0;$('#c-mptok').value='';
+  const {data}=await sb.rpc('mp_conectado');MPON=!!data;
+  $('#mp-off').hidden=!MPON;
+  $('#mp-estado').innerHTML=MPON?(NEG.sena_monto>0?`<b style="color:var(--ok)">Conectado.</b> Se pide una seña de ${money(NEG.sena_monto)} para reservar.`:'<b style="color:var(--ok)">Conectado.</b> Poné un monto para empezar a pedir seña.'):(NEG.sena_monto>0?'<b>Falta conectar Mercado Pago:</b> mientras tanto no se pide seña.':'No conectado. Los turnos se confirman sin seña.');
+  $('#c-mptok').placeholder=MPON?'Ya hay un token guardado (dejalo vacío para no cambiarlo)':'APP_USR-…';
+}
+$('#cfg-mp').addEventListener('submit',async e=>{e.preventDefault();
+  const monto=Math.max(0,parseInt($('#c-sena').value)||0),tok=$('#c-mptok').value.trim();
+  if(tok&&!/^APP_USR-|^TEST-/.test(tok)){status('Ese no parece un Access Token de Mercado Pago (empieza con APP_USR-).');return}
+  if(tok){const {error}=await sb.rpc('guardar_token_mp',{p_token:tok});if(error){status(dbErr(error));return}}
+  if(monto!==NEG.sena_monto)await saveNeg({sena_monto:monto},'Seña guardada.');else{renderMP();status('Guardado.',true)}
+});
+$('#mp-off').addEventListener('click',async e=>{if(!armed(e.currentTarget,'¿Desconectar?'))return;
+  const {error}=await sb.rpc('guardar_token_mp',{p_token:''});if(error){status(dbErr(error));return}
+  renderMP();status('Mercado Pago desconectado: los turnos se confirman sin seña.',true)});
+
+let qrLib=null;
+function renderPoster(){
+  $('#p-name').textContent=NEG.nombre;$('#p-link').textContent=LINK;
+  const draw=()=>{$('#qr').innerHTML='';try{new QRCode($('#qr'),{text:LINK,width:220,height:220,correctLevel:QRCode.CorrectLevel.M})}catch(e){$('#qr').textContent='No se pudo generar el QR.'}};
+  if(window.QRCode)return draw();
+  if(!qrLib){qrLib=document.createElement('script');qrLib.src='https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';qrLib.onload=draw;qrLib.onerror=()=>{$('#qr').textContent='No se pudo cargar el generador de QR.'};document.head.appendChild(qrLib)}
+}
+$('#print').addEventListener('click',()=>{document.body.classList.add('printing');window.print();setTimeout(()=>document.body.classList.remove('printing'),500)});
+
+/* ---------- Sesión ---------- */
+function applyBrand(){
+  $('#nombre').textContent=NEG.nombre;document.title='Panel · '+NEG.nombre;
+  document.documentElement.style.setProperty('--red',tiene('marca')&&NEG.color?NEG.color:'#b8261d');
+  $('#planline').hidden=false;
+  $('#planline').innerHTML=`Plan ${plan().n}${NEG.plan!=='full'&&C.SOPORTE_WHATSAPP?` · <a href="https://wa.me/${C.SOPORTE_WHATSAPP}?text=${encodeURIComponent('Hola! Soy de '+NEG.nombre+' y quiero mejorar mi plan.')}" target="_blank" rel="noopener">Mejorar plan</a>`:''}`;
+  $('#sub').textContent=NEG.activo?({turnos:'Agenda de turnos',fila:'Fila virtual',ambos:'Turnos y fila virtual'}[NEG.modo]||'Agenda de turnos'):'Cuenta pausada: tus clientes no pueden reservar. Contactá a soporte.';
+}
+async function loadSrv(){const {data}=await sb.from('servicios').select('*').eq('negocio_id',NEG.id).order('orden').order('nombre');SRV=data||[]}
+
+$('#login').addEventListener('submit',async e=>{
+  e.preventDefault();$('#lerr').textContent='';
+  const {error}=await sb.auth.signInWithPassword({email:$('#em').value.trim(),password:$('#pw').value});
+  if(error){$('#lerr').textContent='Email o contraseña incorrectos.';return}
+  start();
+});
+$('#olvide').addEventListener('click',async()=>{
+  const em=$('#em').value.trim();if(!em.includes('@')){$('#lerr').textContent='Escribí tu email arriba y tocá de nuevo.';return}
+  const {error}=await sb.auth.resetPasswordForEmail(em,{redirectTo:location.href.split('#')[0]});
+  $('#lerr').textContent=error?'No se pudo enviar el mail.':'Te mandamos un mail para cambiar la contraseña.';
+});
+$('#salir').addEventListener('click',async e=>{e.preventDefault();await sb.auth.signOut();location.hash='';location.reload()});
+sb.auth.onAuthStateChange(ev=>{if(ev==='PASSWORD_RECOVERY'){$('#login').hidden=true;$('#reset').hidden=false}});
+$('#reset').addEventListener('submit',async e=>{e.preventDefault();const p=$('#np').value;
+  if(p.length<8){$('#rerr').textContent='Mínimo 8 caracteres.';return}
+  const {error}=await sb.auth.updateUser({password:p});
+  if(error){$('#rerr').textContent='No se pudo cambiar. Pedí otro mail.';return}
+  location.hash='';location.reload()});
+
+async function start(){
+  const {data:{session}}=await sb.auth.getSession();
+  if(!session){if($('#reset').hidden)$('#login').hidden=false;return}
+  const {data:neg,error}=await sb.from('negocios').select('*').eq('owner',session.user.id).maybeSingle();
+  if(error||!neg){status('Tu usuario no tiene un comercio asignado.');$('#tabs').hidden=false;return}
+  NEG=neg;applyBrand();
+  LINK=location.href.replace(/admin\.html.*$/,'').replace(/[?#].*$/,'')+'?n='+neg.slug;
+  $('#link').textContent=LINK;$('#flink').textContent=LINK;
+  await Promise.all([loadSrv(),loadPros()]);
+  $('#login').hidden=true;$('#tabs').hidden=false;
+  route();
+  // Tiempo real: si entra o cambia un turno, la agenda se actualiza sola
+  sb.channel('turnos-'+neg.id).on('postgres_changes',{event:'*',schema:'public',table:'turnos',filter:'negocio_id=eq.'+neg.id},()=>{if(!$('#v-agenda').hidden&&formAt===null)loadDay()}).subscribe();
+  setInterval(()=>{if(!$('#v-agenda').hidden&&formAt===null)loadDay()},120000);
+  sb.channel('fila-'+neg.id).on('postgres_changes',{event:'*',schema:'public',table:'fila',filter:'negocio_id=eq.'+neg.id},()=>{if(!$('#v-fila').hidden)loadFila()}).subscribe();
+  setInterval(()=>{if(!$('#v-fila').hidden&&$('#fadd').hidden)loadFila()},20000);
+}
+start().catch(e=>{console.error(e);status('No se pudo cargar. Revisá tu conexión.')});
+}
+</script>
+</body>
+</html>

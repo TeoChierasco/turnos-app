@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Fila</title>
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+/* Pantalla para la tele o tablet del local: se ve de lejos, se actualiza sola */
+:root{--red:#b8261d;--bg:#141313;--ink:#f6f2ec;--mut:#a39d95;--soft:#221f1d}
+*{box-sizing:border-box;min-width:0}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:2vmin/1.4 Archivo,system-ui,sans-serif;display:grid;grid-template-rows:auto 1fr auto;overflow:hidden}
+header{background:var(--red);padding:2.2vmin 4vmin;display:flex;justify-content:space-between;align-items:center;gap:2vmin}
+header h1{margin:0;font-size:5vmin;line-height:1.05}
+header span{font-size:2.6vmin;font-weight:600;opacity:.95}
+main{display:grid;grid-template-columns:1.25fr 1fr;gap:4vmin;padding:4vmin}
+h2{margin:0 0 2vmin;font-size:3vmin;color:var(--mut);font-weight:600}
+.now{display:grid;gap:2.5vmin;align-content:start}
+.now div{background:var(--soft);border-radius:2.5vmin;padding:3vmin 3.5vmin;display:flex;align-items:center;gap:3.5vmin;border-left:1.2vmin solid var(--red)}
+.now b{font-size:15vmin;line-height:.9;font-weight:800;color:#fff;font-variant-numeric:tabular-nums}
+.now p{margin:0;font-size:5vmin;font-weight:700}
+.now small{display:block;font-size:3vmin;color:var(--mut);font-weight:600}
+.next{list-style:none;margin:0;padding:0;display:grid;gap:1.4vmin}
+.next li{display:flex;gap:2.5vmin;align-items:center;font-size:4vmin;padding:1.2vmin 0;border-bottom:.3vmin solid #2e2a27}
+.next li b{min-width:2.4em;text-align:center;background:var(--soft);border-radius:1.4vmin;padding:.4vmin 1vmin;font-variant-numeric:tabular-nums}
+.next li:first-child{color:#fff;font-weight:700}
+.more{color:var(--mut);font-size:3vmin;margin-top:1.5vmin}
+.empty{color:var(--mut);font-size:4vmin}
+footer{display:flex;align-items:center;gap:3vmin;padding:2.5vmin 4vmin;background:#0d0c0c}
+#qr{background:#fff;padding:1vmin;border-radius:1vmin;line-height:0}
+footer p{margin:0;font-size:3.4vmin;font-weight:700}
+footer small{display:block;font-size:2.4vmin;color:var(--mut);font-weight:400}
+#fs{margin-left:auto;background:none;border:.3vmin solid #444;color:var(--mut);border-radius:1vmin;padding:1vmin 2vmin;font:inherit;font-size:2vmin;cursor:pointer}
+.msg{grid-column:1/-1;display:grid;place-items:center;text-align:center;font-size:4vmin;color:var(--mut)}
+@keyframes flash{from{background:#5a1a15}to{background:var(--soft)}}
+.now div.nuevo{animation:flash 2.5s ease-out}
+@media(prefers-reduced-motion:reduce){.now div.nuevo{animation:none}}
+@media(orientation:portrait){main{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header><h1 id="nombre">Fila</h1><span id="sit"></span></header>
+<main id="main"><div class="msg">Cargando…</div></main>
+<footer><div id="qr"></div><p>Anotate desde el celular<small id="lnk"></small></p><button id="fs" type="button">Pantalla completa</button></footer>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="config.js"></script>
+<script src="comun.js"></script>
+<script>
+{
+const C=window.TURNOS_CONFIG,{$,esc}=window.TU;
+const sb=supabase.createClient(C.SUPABASE_URL,C.SUPABASE_ANON_KEY);
+const slug=new URLSearchParams(location.search).get('n');
+const link=location.href.split(/[?#]/)[0].replace(/pantalla\.html$/,'')+'?n='+encodeURIComponent(slug||'');
+let antes=new Set(),qrHecho=false;
+const SIT={abierta:'Fila abierta',pausada:'Fila pausada',cerrada:'Fila cerrada',llena:'Fila completa'};
+
+async function cargar(){
+  if(!slug){$('#main').innerHTML='<div class="msg">Falta el comercio en el link (pantalla.html?n=…)</div>';return}
+  const {data:d,error}=await sb.rpc('fila_pantalla',{p_slug:slug});
+  if(error||!d){$('#main').innerHTML='<div class="msg">Sin conexión. Reintentando…</div>';return}
+  if(!d.habilitada){$('#main').innerHTML='<div class="msg">La pantalla no está habilitada para este local.</div>';return}
+  document.title='Fila · '+d.negocio;$('#nombre').textContent=d.negocio;$('#sit').textContent=SIT[d.situacion]||'';
+  if(d.color)document.documentElement.style.setProperty('--red',d.color);
+  const ahora=new Set(d.atendiendo.map(x=>x.numero));
+  $('#main').innerHTML=`<section><h2>Atendiendo</h2><div class="now">${d.atendiendo.length?d.atendiendo.map(x=>`<div class="${antes.size&&!antes.has(x.numero)?'nuevo':''}"><b>${x.numero}</b><p>${esc(x.nombre)}${x.profesional?`<small>con ${esc(x.profesional)}</small>`:''}</p></div>`).join(''):'<p class="empty">Enseguida llamamos al próximo.</p>'}</div></section>
+    <section><h2>Próximos</h2>${d.esperando.length?`<ol class="next">${d.esperando.map(x=>`<li><b>${x.numero}</b>${esc(x.nombre)}</li>`).join('')}</ol>${d.total_esperando>d.esperando.length?`<p class="more">y ${d.total_esperando-d.esperando.length} más</p>`:''}`:'<p class="empty">No hay nadie esperando.</p>'}</section>`;
+  antes=ahora;
+  if(!qrHecho&&window.QRCode){qrHecho=true;const s=Math.round(Math.min(innerWidth,innerHeight)*.13);try{new QRCode($('#qr'),{text:link,width:s,height:s,correctLevel:QRCode.CorrectLevel.M})}catch(e){}}
+  $('#lnk').textContent=link.replace(/^https?:\/\//,'');
+}
+$('#fs').addEventListener('click',()=>{try{document.documentElement.requestFullscreen()}catch(e){}});
+cargar();setInterval(cargar,5000);
+}
+</script>
+</body>
+</html>

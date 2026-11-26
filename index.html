@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sacar turno</title>
+<meta name="description" content="Sacá tu turno online en segundos.">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="top band">
+  <div class="wrap">
+    <div class="brand">
+      <svg width="44" height="44" viewBox="0 0 44 44" aria-hidden="true"><circle cx="22" cy="22" r="21" fill="#fff"/><text id="ini" x="22" y="29" text-anchor="middle" font-size="20" font-weight="800" font-family="Archivo,sans-serif" fill="#1d1b1a">T</text></svg>
+      <div><h1 id="nombre">Cargando…</h1><p id="dir">Turnos online</p></div>
+    </div>
+  </div>
+</header>
+<p class="status band" id="status" role="status" style="padding-block:10px 0"></p>
+
+<main class="band" style="padding-top:12px">
+  <!-- Ver / cancelar un turno (?t=id) -->
+  <div class="wrap" id="vt" hidden><div class="ticket" id="vtc" style="max-width:460px;margin:0 auto"></div></div>
+
+  <!-- Mi lugar en la fila (?f=id) -->
+  <div class="wrap" id="vf" hidden><div class="ticket fticket" id="vfc"></div></div>
+
+  <!-- Locales que usan turnos y fila -->
+  <div class="wrap" id="modos" hidden style="margin-bottom:18px"><div class="chips">
+    <button type="button" class="chip" data-modo="fila">Anotarme en la fila de hoy</button>
+    <button type="button" class="chip" data-modo="turnos">Sacar turno para otro día</button></div></div>
+  <div class="wrap" id="yaenfila" hidden></div>
+
+  <!-- Fila virtual -->
+  <div class="wrap grid" id="fila" hidden>
+    <div>
+      <div class="filabox" id="fstate"></div>
+      <div class="step" id="fst-pro" hidden><h2>¿Con quién?</h2><div class="chips" id="fpros"></div></div>
+      <p class="note">Anotate desde donde estés y vení cuando te falte poco. En esta página vas a ver cuántos tenés adelante, en vivo.</p>
+    </div>
+    <aside>
+      <div class="ticket">
+        <h3>Anotate en la fila</h3><p class="muted" id="fhor"></p>
+        <form id="ff" novalidate>
+          <label for="fnom">Nombre</label><input id="fnom" autocomplete="name" maxlength="60" placeholder="Ej: Martín">
+          <label for="ftel">WhatsApp</label><input id="ftel" type="tel" autocomplete="tel" maxlength="30" placeholder="Ej: 2941 123456">
+          <button class="big" id="fok" type="submit">Anotarme</button>
+          <p class="err" id="ferr" role="alert"></p>
+        </form>
+      </div>
+    </aside>
+  </div>
+
+  <div class="wrap grid" id="app" hidden>
+    <div>
+      <p class="aviso" id="aviso" hidden></p>
+      <div class="step"><h2><i>1</i>¿Qué te hacés?</h2><div class="srvs" id="srv"></div></div>
+      <div class="step" id="st-pro" hidden><h2><i>2</i>¿Con quién?</h2><div class="chips" id="pros"></div></div>
+      <div class="step"><h2><i id="n-dia">2</i>¿Qué día?</h2><div class="days" id="days"></div></div>
+      <div class="step"><h2><i id="n-hora">3</i>¿A qué hora?</h2><div class="times" id="times"></div></div>
+    </div>
+    <aside>
+      <div class="ticket" id="tk">
+        <h3>Tu turno</h3><p class="muted" id="hor"></p>
+        <div class="rows" id="sum"></div>
+        <form id="f" novalidate>
+          <label for="nom">Nombre</label><input id="nom" autocomplete="name" maxlength="60" placeholder="Ej: Martín">
+          <label for="tel">WhatsApp</label><input id="tel" type="tel" autocomplete="tel" maxlength="30" placeholder="Ej: 2941 123456">
+          <p class="sena" id="sena" hidden></p>
+          <button class="big" id="ok" type="submit" disabled>Confirmar turno</button>
+          <p class="err" id="err" role="alert"></p>
+        </form>
+      </div>
+      <div class="ticket done" id="done" hidden></div>
+      <div class="mine" id="mine" hidden></div>
+    </aside>
+  </div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="config.js"></script>
+<script src="comun.js"></script>
+<script>
+{
+const C=window.TURNOS_CONFIG, U=window.TU;
+const {$,esc,money,pad,dk,hm,toMin,days,DIAS,MES,DIAL}=U;
+const sb=supabase.createClient(C.SUPABASE_URL,C.SUPABASE_ANON_KEY);
+const qs=new URLSearchParams(location.search);
+const slug=qs.get('n'),verId=qs.get('t'),filaId=qs.get('f');
+const ERR={profesional_invalido:'Ese profesional ya no está disponible.',ocupado:'Alguien acaba de reservar ese horario. Elegí otro.',horario_pasado:'Ese horario ya no se puede reservar.',muy_lejos:'Todavía no se puede reservar tan adelante.',fuera_de_horario:'Ese horario está fuera de la atención.',telefono_invalido:'Poné un WhatsApp válido.',nombre_invalido:'Poné tu nombre.',demasiados_turnos:'Ya tenés varios turnos pedidos con ese número. Escribile al local.',servicio_invalido:'Ese servicio ya no está disponible.'};
+
+let NEG=null,SRV=[],BUSY=[],PROS=[],SENA=0;
+const sel={srv:null,pro:null,day:null,m:null};
+const status=t=>$('#status').textContent=t||'';
+const srvOf=id=>SRV.find(s=>s.id===id);
+const blocks=k=>(NEG.horarios[String(U.pday(k).getDay()||7)]||[]).map(([a,b])=>[toMin(a),toMin(b)]);
+const at=(k,m)=>new Date(`${k}T${hm(m)}:00${C.TZ_OFFSET}`);
+const fday=k=>{const d=U.pday(k);return DIAL[d.getDay()]+' '+d.getDate()+' de '+MES[d.getMonth()]};
+const fdate=d=>{d=new Date(d);return DIAL[d.getDay()]+' '+d.getDate()+' de '+MES[d.getMonth()]+' a las '+hm(d.getHours()*60+d.getMinutes())+' hs'};
+const store={get(k,d){try{return JSON.parse(localStorage.getItem(k))??d}catch{return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch{}}};
+const baseUrl=()=>location.href.split(/[?#]/)[0];
+const cancelUrl=id=>`${baseUrl()}?n=${encodeURIComponent(slug)}&t=${id}`;
+
+const dow=k=>U.pday(k).getDay()||7;
+const proWorks=(p,k)=>!p.dias||p.dias.includes(dow(k));
+// ¿Hay algún profesional (el elegido, o cualquiera) libre en ese horario?
+function canStart(k,m,dur){
+  if(!blocks(k).some(([a,b])=>m>=a&&m+dur<=b))return false;
+  const s=+at(k,m),e=s+dur*60000;
+  if(s<Date.now()+Math.max(5,NEG.anticipacion_min)*60000)return false;
+  const hit=b=>s<b[1]&&e>b[0];
+  if(!PROS.length)return !BUSY.some(hit);
+  if(BUSY.some(b=>b[2]==null&&hit(b)))return false;
+  const cand=sel.pro?PROS.filter(p=>p.id===sel.pro):PROS;
+  return cand.some(p=>proWorks(p,k)&&!BUSY.some(b=>b[2]===p.id&&hit(b)));
+}
+const dayOpen=k=>blocks(k).length>0&&(!PROS.length||(sel.pro?PROS.filter(p=>p.id===sel.pro):PROS).some(p=>proWorks(p,k)));
+function slots(k,dur){const r=[];for(const[a,b]of blocks(k))for(let m=a;m+dur<=b;m+=NEG.intervalo)r.push(m);return r}
+
+function rSrv(){$('#srv').innerHTML=SRV.length?SRV.map(s=>`<button type="button" class="srv ${sel.srv===s.id?'on':''}" data-s="${s.id}"><b>${esc(s.nombre)}</b><span>${esc(s.descripcion||'')}</span><em>${s.precio?money(s.precio)+' · ':''}${s.duracion_min} min</em></button>`).join(''):'<p class="muted">Este comercio todavía no cargó sus servicios.</p>'}
+function rPros(){
+  if(PROS.length<2){$('#st-pro').hidden=true;$('#n-dia').textContent='2';$('#n-hora').textContent='3';return}
+  $('#st-pro').hidden=false;$('#n-dia').textContent='3';$('#n-hora').textContent='4';
+  $('#pros').innerHTML=[{id:'',nombre:'Cualquiera'},...PROS].map(p=>`<button type="button" class="chip ${(sel.pro||'')===p.id?'on':''}" data-p="${p.id}">${esc(p.nombre)}</button>`).join('');
+}
+function rDays(){if(sel.day&&!dayOpen(sel.day)){sel.day=null;sel.m=null}$('#days').innerHTML=days(NEG.dias_reserva+1).map(d=>{const k=dk(d);const open=dayOpen(k);return `<button type="button" class="day ${sel.day===k?'on':''}" data-d="${k}" ${open?'':'disabled'}><small>${k===dk(new Date())?'Hoy':DIAS[d.getDay()]}</small><b>${d.getDate()}</b><small>${MES[d.getMonth()]}</small></button>`}).join('')}
+function rTimes(){
+  const box=$('#times');
+  if(!sel.srv||!sel.day){box.innerHTML='<p class="muted">Elegí un servicio y un día para ver los horarios.</p>';return}
+  const dur=srvOf(sel.srv).duracion_min;
+  if(sel.m!=null&&!canStart(sel.day,sel.m,dur))sel.m=null;
+  const list=slots(sel.day,dur);
+  box.innerHTML=list.some(m=>canStart(sel.day,m,dur))?list.map(m=>`<button type="button" class="tm ${sel.m===m?'on':''}" data-m="${m}" ${canStart(sel.day,m,dur)?'':'disabled'}>${hm(m)}</button>`).join(''):'<p class="muted">No quedan horarios libres ese día. Probá con otro.</p>';
+}
+function rSum(){
+  const s=srvOf(sel.srv);
+  const pro=PROS.find(p=>p.id===sel.pro);
+  $('#sum').innerHTML=`<div><span>Servicio</span><b>${s?esc(s.nombre):'—'}</b></div>${PROS.length>1?`<div><span>Con</span><b>${pro?esc(pro.nombre):'Cualquiera'}</b></div>`:''}<div><span>Día</span><b>${sel.day?fday(sel.day):'—'}</b></div><div><span>Hora</span><b>${sel.m!=null?hm(sel.m)+' hs':'—'}</b></div><div><span>Precio</span><b>${s?(s.precio?money(s.precio):'A consultar'):'—'}</b></div>`;
+  $('#ok').disabled=!(s&&sel.day&&sel.m!=null);
+  $('#ok').textContent=SENA?'Reservar y pagar seña':'Confirmar turno';
+}
+function rMine(){
+  const all=store.get('turnos:'+slug,[]).filter(x=>new Date(x.inicio)>new Date());
+  store.set('turnos:'+slug,all);
+  const box=$('#mine');box.hidden=!all.length;
+  box.innerHTML=all.length?'<h3>Tus próximos turnos</h3>'+all.map(x=>`<div><span>${esc(x.servicio)} · ${fdate(x.inicio)}</span><a class="ghost sm" href="${esc(cancelUrl(x.id))}">Ver</a></div>`).join(''):'';
+}
+function renderAll(){rSrv();rPros();rDays();rTimes();rSum();rMine()}
+function horTxt(){
+  const n=['','Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
+  return Object.keys(NEG.horarios).sort().filter(d=>NEG.horarios[d].length).map(d=>n[d]+' '+NEG.horarios[d].map(([a,b])=>a+'–'+b).join(' y ')).join(' · ');
+}
+function brand(){
+  document.title='Turnos · '+NEG.nombre;
+  document.documentElement.style.setProperty('--red',NEG.color||'#b8261d');
+  $('#nombre').textContent=NEG.nombre;$('#ini').textContent=NEG.nombre.trim()[0].toUpperCase();
+  $('#dir').textContent=({fila:'Fila virtual',ambos:'Turnos y fila virtual'}[NEG.modo]||'Turnos online')+(NEG.direccion?' · '+NEG.direccion:'');
+}
+
+async function loadBusy(){
+  const desde=new Date(),hasta=new Date(Date.now()+(NEG.dias_reserva+2)*864e5);
+  const {data,error}=await sb.rpc('ocupados',{p_slug:slug,p_desde:desde.toISOString(),p_hasta:hasta.toISOString()});
+  if(error){console.error(error);status('No se pudieron actualizar los horarios.');return}
+  BUSY=data.map(r=>[+new Date(r.inicio),+new Date(r.fin),r.profesional_id]);status('');
+}
+
+async function verTurno(){
+  $('#vt').hidden=false;
+  const {data,error}=await sb.rpc('ver_turno',{p_id:verId});
+  const t=data&&data[0],box=$('#vtc');
+  if(error||!t){box.innerHTML='<h3>Turno no encontrado</h3><p class="muted">Revisá el link.</p><a class="big" style="display:block;text-align:center;text-decoration:none" href="?n='+encodeURIComponent(slug||'')+'">Sacar un turno</a>';return}
+  const EST={reservado:'Confirmado',pendiente_pago:'Falta pagar la seña',completado:'Ya fuiste',ausente:'No asististe',cancelado:'Cancelado'};
+  const volvioDeMP=/approved/.test(location.search);
+  if(t.estado==='pendiente_pago'&&volvioDeMP&&(window.__poll=(window.__poll||0)+1)<=10){
+    box.innerHTML='<h3>Confirmando tu pago…</h3><p class="muted">Esto tarda unos segundos.</p>';
+    return setTimeout(verTurno,3000);
+  }
+  const pend=t.estado==='pendiente_pago';
+  const wa=t.whatsapp?`<a class="wa" href="https://wa.me/${esc(t.whatsapp)}?text=${encodeURIComponent('Hola! Te escribo por mi turno del '+fdate(t.inicio)+'.')}" target="_blank" rel="noopener">Escribirle al local</a>`:'';
+  box.innerHTML=`<h3>${esc(t.negocio)}</h3><p class="muted">${EST[t.estado]||t.estado}</p><div class="rows"><div><span>Servicio</span><b>${esc(t.servicio||'—')}</b></div>${t.profesional?`<div><span>Con</span><b>${esc(t.profesional)}</b></div>`:''}<div><span>Cuándo</span><b>${fdate(t.inicio)}</b></div>${t.sena?`<div><span>Seña pagada</span><b>${money(t.sena)}</b></div>`:''}</div>
+    ${pend?`<p class="sena">Para confirmar el turno falta pagar la seña de <b>${money(t.sena_monto)}</b>. Tenés tiempo hasta las ${hm(new Date(t.expira).getHours()*60+new Date(t.expira).getMinutes())} hs; si no, el horario se libera.</p><button class="big" type="button" id="pay">Pagar seña con Mercado Pago</button><p class="err" id="paye"></p>`:''}
+    ${t.puede_cancelar?'<button class="big" type="button" id="cx">Cancelar este turno</button><p class="err" id="cxe"></p>':(t.estado==='reservado'?'<p class="muted">Ya no se puede cancelar desde acá. Avisale al local.</p>':'')}
+    ${wa}<a class="ghost" style="display:flex;justify-content:center;margin-top:10px" href="?n=${encodeURIComponent(t.slug)}">Sacar otro turno</a>`;
+  const pay=$('#pay');
+  if(pay){pay.addEventListener('click',()=>irAPagar(verId,pay,$('#paye')));if(qs.get('pagar')==='1'&&!window.__auto){window.__auto=1;irAPagar(verId,pay,$('#paye'))}}
+  const cx=$('#cx');
+  if(cx)cx.addEventListener('click',async()=>{
+    if(!cx.dataset.armed){cx.dataset.armed='1';cx.textContent='Tocá de nuevo para confirmar';return}
+    cx.disabled=true;
+    const {error}=await sb.rpc('cancelar_turno',{p_id:verId});
+    if(error){$('#cxe').textContent='No se pudo cancelar. Escribile al local.';cx.disabled=false;return}
+    store.set('turnos:'+t.slug,store.get('turnos:'+t.slug,[]).filter(x=>x.id!==verId));
+    verTurno();
+  });
+}
+
+async function init(){
+  if(filaId)return verFila();
+  if(!slug&&!verId){$('#nombre').textContent='Link incompleto';status('Falta el comercio en el link (…/?n=nombre-del-local).');return}
+  if(verId){$('#nombre').textContent='Tu turno';$('#dir').textContent='Turnos online';
+    if(slug){const {data}=await sb.from('negocios').select('nombre,direccion,color').eq('slug',slug).maybeSingle();if(data){NEG=data;brand()}}
+    return verTurno()}
+  const {data:neg,error}=await sb.from('negocios').select('id,slug,nombre,whatsapp,direccion,mensaje,horarios,intervalo,anticipacion_min,dias_reserva,color,plan,modo').eq('slug',slug).maybeSingle();
+  if(error||!neg){$('#nombre').textContent='Comercio no disponible';status('Revisá el link que te pasaron, o escribile al local.');return}
+  if(neg.plan==='agenda'){neg.color=null;neg.mensaje=null}   // color y aviso: desde el plan Equipo
+  NEG=neg;brand();
+  if(neg.mensaje){$('#aviso').textContent=neg.mensaje;$('#aviso').hidden=false}
+  $('#hor').textContent=horTxt();$('#fhor').textContent=horTxt();
+  const modo=neg.modo||'turnos';
+  if(modo!=='turnos'){
+    const me0=store.get('cliente',{});$('#fnom').value=me0.nombre||'';$('#ftel').value=me0.tel||'';
+    mostrarYaEnFila();
+    await loadFila();setInterval(loadFila,30000);
+  }
+  if(modo==='fila'){$('#fila').hidden=false;return}
+  if(modo==='ambos'){$('#modos').hidden=false;elegirModo(FST&&FST.situacion==='abierta'?'fila':'turnos')}
+  const {data:srv}=await sb.from('servicios').select('id,nombre,descripcion,duracion_min,precio').eq('negocio_id',neg.id).eq('activo',true).order('orden').order('nombre');
+  SRV=srv||[];if(SRV.length===1)sel.srv=SRV[0].id;
+  const [{data:pros},{data:sena}]=await Promise.all([
+    sb.from('profesionales').select('id,nombre,dias,orden').eq('negocio_id',neg.id).eq('activo',true).order('orden').order('nombre'),
+    sb.rpc('sena_activa',{p_slug:slug})]);
+  PROS=(pros||[]).slice(0,{agenda:1,equipo:5,full:1000}[neg.plan]||1);SENA=Number(sena)||0;
+  if(SENA){$('#sena').innerHTML=`Para confirmar se pide una seña de <b>${money(SENA)}</b> por Mercado Pago. Se descuenta del precio.`;$('#sena').hidden=false}
+  const me=store.get('cliente',{});$('#nom').value=me.nombre||'';$('#tel').value=me.tel||'';
+  await loadBusy();
+  const first=days(NEG.dias_reserva+1).map(dk).find(dayOpen);if(first)sel.day=first;
+  if(modo!=='ambos'||MODO==='turnos')$('#app').hidden=false;
+  renderAll();
+  setInterval(async()=>{await loadBusy();rTimes();rSum()},60000);
+}
+
+/* ---------- Fila virtual ---------- */
+let FST=null,MODO='turnos',fsel=null;
+const durTxt=m=>m<60?`${m} min`:`${Math.floor(m/60)} h${m%60?' '+m%60+' min':''}`;
+function elegirModo(m){
+  MODO=m;
+  document.querySelectorAll('#modos [data-modo]').forEach(b=>b.classList.toggle('on',b.dataset.modo===m));
+  $('#fila').hidden=m!=='fila';$('#app').hidden=m!=='turnos';
+}
+$('#modos').addEventListener('click',e=>{const b=e.target.closest('[data-modo]');if(b)elegirModo(b.dataset.modo)});
+async function loadFila(){
+  const {data,error}=await sb.rpc('fila_estado',{p_slug:slug});
+  if(error){console.error(error);return}
+  FST=data;renderFila();
+}
+function renderFila(){
+  const f=FST,box=$('#fstate');if(!f)return;
+  const MSG={
+    abierta:`<b class="big-n">${f.esperando}</b><span>${f.esperando===1?'persona esperando':'personas esperando'}</span><p>Si te anotás ahora, te toca en <b>~${durTxt(f.espera_min)}</b>.</p>`,
+    pausada:'<b class="big-n">Pausada</b><p>La fila está pausada por un rato. Probá de nuevo en unos minutos.</p>',
+    cerrada:'<b class="big-n">Cerrada</b><p>Ahora no se puede anotar. Mirá los horarios de atención.</p>',
+    llena:`<b class="big-n">Completa</b><p>Ya hay ${f.esperando} personas esperando. Probá más tarde.</p>`,
+    sin_fila:'<p>Este local no usa fila virtual.</p>'};
+  box.className='filabox '+f.situacion;box.innerHTML=MSG[f.situacion]||MSG.sin_fila;
+  const pros=f.profesionales||[];
+  $('#fst-pro').hidden=pros.length<2||f.situacion!=='abierta';
+  if(fsel&&!pros.some(p=>p.id===fsel))fsel=null;
+  $('#fpros').innerHTML=[{id:'',nombre:'El primero que se libere',espera_min:f.espera_min},...pros].map(p=>`<button type="button" class="chip ${(fsel||'')===p.id?'on':''}" data-fp="${p.id}">${esc(p.nombre)}<small>~${durTxt(p.espera_min)}</small></button>`).join('');
+  $('#fok').disabled=f.situacion!=='abierta';
+}
+$('#fpros').addEventListener('click',e=>{const b=e.target.closest('[data-fp]');if(!b)return;fsel=b.dataset.fp||null;renderFila()});
+$('#ff').addEventListener('submit',async e=>{
+  e.preventDefault();const er=$('#ferr');er.textContent='';
+  const nombre=$('#fnom').value.trim(),tel=$('#ftel').value.trim();
+  if(nombre.length<2){er.textContent='Poné tu nombre.';$('#fnom').focus();return}
+  if(tel.replace(/\D/g,'').length<8){er.textContent='Poné un WhatsApp válido.';$('#ftel').focus();return}
+  const b=$('#fok');b.disabled=true;b.textContent='Anotando…';
+  const {data:id,error}=await sb.rpc('fila_anotarse',{p_slug:slug,p_nombre:nombre,p_telefono:tel,p_profesional:fsel});
+  b.textContent='Anotarme';b.disabled=false;
+  if(error){
+    const m=error.message||'',E={ya_en_fila:'Ya estás anotado con ese número. Mirá tu lugar desde el link que te quedó.',fila_llena:'La fila se completó recién. Probá en un rato.',fila_pausada:'La fila está pausada. Probá en unos minutos.',fila_cerrada:'La fila está cerrada ahora.',profesional_invalido:'Ese profesional no atiende hoy.'};
+    const k=Object.keys(E).find(k=>m.includes(k));er.textContent=k?E[k]:'No se pudo anotar. Probá de nuevo.';console.error(error);loadFila();return;
+  }
+  store.set('cliente',{nombre,tel});
+  store.set('fila:'+slug,{id,dia:dk(new Date())});
+  location.href=`${baseUrl()}?n=${encodeURIComponent(slug)}&f=${id}`;
+});
+async function mostrarYaEnFila(){
+  const m=store.get('fila:'+slug,null);if(!m||m.dia!==dk(new Date()))return;
+  const {data}=await sb.rpc('fila_mi_lugar',{p_id:m.id});
+  if(!data||!['esperando','atendiendo'].includes(data.estado))return;
+  const box=$('#yaenfila');box.hidden=false;
+  box.innerHTML=`<p class="aviso" style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap"><span>Ya estás en la fila con el número <b>${data.numero}</b>.</span><a class="ghost sm" href="?n=${encodeURIComponent(slug)}&f=${m.id}">Ver mi lugar</a></p>`;
+}
+
+let avisado=false,pollT=null;
+async function verFila(){
+  $('#vf').hidden=false;
+  const {data:d,error}=await sb.rpc('fila_mi_lugar',{p_id:filaId});
+  const box=$('#vfc');
+  if(error||!d){box.innerHTML='<h3>No encontramos tu lugar</h3><p class="muted">Revisá el link.</p>';return}
+  if(!NEG){NEG={nombre:d.negocio,direccion:d.direccion,color:d.color,modo:'fila'};brand()}
+  const volver=`<a class="ghost" style="display:flex;justify-content:center;margin-top:10px" href="?n=${encodeURIComponent(d.slug)}">Volver a la página del local</a>`;
+  const wa=d.whatsapp?`<a class="wa" href="https://wa.me/${esc(d.whatsapp)}?text=${encodeURIComponent('Hola! Soy '+d.nombre+', el número '+d.numero+' de la fila.')}" target="_blank" rel="noopener">Escribirle al local</a>`:'';
+  let cuerpo='';
+  if(d.estado==='esperando'){
+    const pct=Math.max(8,100-Math.min(92,d.adelante*15));
+    cuerpo=`<p class="fmsg">${d.adelante===0?'<b>¡Sos el próximo!</b> Acercate al local.':`Tenés <b>${d.adelante}</b> ${d.adelante===1?'persona':'personas'} adelante`}</p>
+      ${d.adelante>0?`<p class="muted">Te toca en unos <b>${durTxt(d.espera_min)}</b>${d.profesional?' con '+esc(d.profesional):''}. Es un cálculo aproximado.</p>`:''}
+      <div class="fbar"><i style="width:${pct}%"></i></div>
+      ${'Notification' in window&&Notification.permission!=='granted'?'<button class="ghost" type="button" id="notif" style="width:100%;justify-content:center;margin-top:12px">Avisarme en este celular cuando me falte poco</button>':''}
+      ${wa}<button class="ghost danger" type="button" id="salir" style="width:100%;justify-content:center;margin-top:10px">Salir de la fila</button>`;
+    document.title=`(${d.adelante}) Fila · ${d.negocio}`;
+    if(d.adelante<=2&&!avisado){avisado=true;try{if(Notification.permission==='granted')new Notification(d.adelante===0?'¡Sos el próximo!':`Te faltan ${d.adelante}`,{body:`Andá yendo a ${d.negocio}.`})}catch(e){}try{navigator.vibrate&&navigator.vibrate([200,100,200])}catch(e){}}
+  }
+  else if(d.estado==='atendiendo'){cuerpo=`<p class="fmsg"><b>¡Es tu turno!</b></p><p class="muted">${d.profesional?esc(d.profesional)+' te':'Te'} está esperando.</p>`;document.title='¡Es tu turno! · '+d.negocio}
+  else if(d.estado==='atendido')cuerpo=`<p class="fmsg">¡Gracias por venir!</p>${volver}`;
+  else if(d.estado==='ausente')cuerpo=`<p class="fmsg">Te llamamos y no estabas.</p><p class="muted">Si todavía querés atenderte, anotate de nuevo.</p>${volver}`;
+  else cuerpo=`<p class="fmsg">Ya no estás en la fila.</p>${volver}`;
+  box.innerHTML=`<p class="muted" style="margin:0">${esc(d.negocio)} · tu número</p><div class="fnum">${d.numero}</div><p style="margin:0 0 8px">${esc(d.nombre)}</p>${cuerpo}`;
+  const sal=$('#salir');
+  if(sal)sal.addEventListener('click',async()=>{if(!sal.dataset.armed){sal.dataset.armed='1';sal.textContent='Tocá de nuevo para salir';return}
+    await sb.rpc('fila_salir',{p_id:filaId});clearTimeout(pollT);verFila()});
+  const nb=$('#notif');
+  if(nb)nb.addEventListener('click',async()=>{try{const r=await Notification.requestPermission();nb.textContent=r==='granted'?'Listo: te vamos a avisar (dejá esta página abierta)':'No se pudo activar el aviso';nb.disabled=true}catch(e){nb.textContent='Tu celular no permite avisos desde la web'}});
+  clearTimeout(pollT);
+  if(['esperando','atendiendo'].includes(d.estado))pollT=setTimeout(verFila,15000);
+}
+
+$('#srv').addEventListener('click',e=>{const b=e.target.closest('[data-s]');if(!b)return;sel.srv=b.dataset.s;rSrv();rTimes();rSum()});
+$('#pros').addEventListener('click',e=>{const b=e.target.closest('[data-p]');if(!b)return;sel.pro=b.dataset.p||null;rPros();rDays();rTimes();rSum()});
+$('#days').addEventListener('click',e=>{const b=e.target.closest('[data-d]');if(!b)return;sel.day=b.dataset.d;sel.m=null;rDays();rTimes();rSum()});
+$('#times').addEventListener('click',e=>{const b=e.target.closest('[data-m]');if(!b)return;sel.m=Number(b.dataset.m);rTimes();rSum();if(innerWidth<761)$('#tk').scrollIntoView({behavior:'smooth',block:'start'})});
+
+$('#f').addEventListener('submit',async e=>{
+  e.preventDefault();
+  const nombre=$('#nom').value.trim(),tel=$('#tel').value.trim(),s=srvOf(sel.srv),er=$('#err');
+  er.textContent='';
+  if(!s||!sel.day||sel.m==null)return;
+  if(nombre.length<2){er.textContent=ERR.nombre_invalido;$('#nom').focus();return}
+  if(tel.replace(/\D/g,'').length<8){er.textContent=ERR.telefono_invalido;$('#tel').focus();return}
+  const ok=$('#ok');ok.disabled=true;ok.textContent='Reservando…';
+  const day=sel.day,m=sel.m,ini=at(day,m);
+  const {data:id,error}=await sb.rpc('reservar',{p_slug:slug,p_servicio:s.id,p_inicio:ini.toISOString(),p_nombre:nombre,p_telefono:tel,p_profesional:sel.pro});
+  ok.textContent=SENA?'Reservar y pagar seña':'Confirmar turno';
+  if(error){
+    const code=Object.keys(ERR).find(c=>(error.message||'').includes(c));
+    er.textContent=code?ERR[code]:'No se pudo reservar. Probá de nuevo.';
+    console.error(error);await loadBusy();rTimes();rSum();return;
+  }
+  store.set('cliente',{nombre,tel});
+  store.set('turnos:'+slug,[...store.get('turnos:'+slug,[]),{id,inicio:ini.toISOString(),servicio:s.nombre}]);
+  sel.m=null;
+  if(SENA){ok.disabled=true;ok.textContent='Yendo a Mercado Pago…';location.href=cancelUrl(id)+'&pagar=1';return}
+  showDone(id,nombre,s,day,m,ini);
+  await loadBusy();renderAll();
+});
+
+// Pide el link de pago a la Edge Function y manda al cliente a Mercado Pago
+async function irAPagar(id,btn,errEl){
+  btn.disabled=true;
+  const {data,error}=await sb.functions.invoke('crear-pago',{body:{turno_id:id,volver_a:cancelUrl(id)}});
+  if(error||!data||!data.url){
+    console.error(error||data);
+    errEl.textContent='No se pudo abrir Mercado Pago. Probá de nuevo en un momento.';btn.disabled=false;
+    return;
+  }
+  location.href=data.url;
+}
+
+function showDone(id,nombre,s,day,m,ini){
+  const fin=new Date(+ini+s.duracion_min*60000);
+  const z=d=>d.toISOString().replace(/[-:]/g,'').replace(/\.\d{3}/,'');
+  const title=`${s.nombre} en ${NEG.nombre}`;
+  const gcal=`https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}&dates=${z(ini)}/${z(fin)}&details=${encodeURIComponent('Para cancelar: '+cancelUrl(id))}&location=${encodeURIComponent(NEG.direccion||'')}`;
+  const txt=`Hola! Reservé ${s.nombre} para el ${fday(day)} a las ${hm(m)} hs. Soy ${nombre}.`;
+  const wa=NEG.whatsapp?`<a class="wa" href="https://wa.me/${esc(NEG.whatsapp)}?text=${encodeURIComponent(txt)}" target="_blank" rel="noopener">Avisar por WhatsApp</a>`:'';
+  const box=$('#done');
+  box.innerHTML=`<h3>¡Turno confirmado!</h3><p class="muted">Te esperamos, ${esc(nombre)}.</p><div class="rows"><div><span>Servicio</span><b>${esc(s.nombre)}</b></div><div><span>Día</span><b>${fday(day)}</b></div><div><span>Hora</span><b>${hm(m)} hs</b></div><div><span>Precio</span><b>${s.precio?money(s.precio):'A consultar'}</b></div></div>
+   ${wa}<div class="links"><a class="ghost" href="${gcal}" target="_blank" rel="noopener">Agregar a Google Calendar</a><button class="ghost" type="button" id="ics">Agregar al calendario del celular</button><button class="ghost" type="button" id="cpy">Copiar link para cancelar</button></div>
+   <p class="cancel-url">Si no podés venir, cancelalo desde este link: ${esc(cancelUrl(id))}</p>
+   <button class="big" type="button" id="again">Sacar otro turno</button>`;
+  box.hidden=false;$('#tk').hidden=true;box.classList.add('flash');box.scrollIntoView({behavior:'smooth',block:'start'});
+  $('#again').addEventListener('click',()=>{box.hidden=true;$('#tk').hidden=false});
+  $('#cpy').addEventListener('click',async e=>{try{await navigator.clipboard.writeText(cancelUrl(id));e.target.textContent='¡Copiado!'}catch{e.target.textContent='Copialo de abajo'}});
+  $('#ics').addEventListener('click',()=>{
+    const ics=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Turnos//ES','BEGIN:VEVENT',`UID:${id}@turnos`,`DTSTAMP:${z(new Date())}`,`DTSTART:${z(ini)}`,`DTEND:${z(fin)}`,`SUMMARY:${title.replace(/[,;]/g,' ')}`,`LOCATION:${(NEG.direccion||'').replace(/[,;]/g,' ')}`,`DESCRIPTION:Para cancelar: ${cancelUrl(id)}`,'BEGIN:VALARM','TRIGGER:-PT2H','ACTION:DISPLAY','DESCRIPTION:Turno','END:VALARM','END:VEVENT','END:VCALENDAR'].join('\r\n');
+    const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([ics],{type:'text/calendar'}));a.download='turno.ics';document.body.appendChild(a);a.click();a.remove();
+  });
+}
+
+init().catch(e=>{console.error(e);status('No se pudo cargar. Revisá tu conexión.')});
+}
+</script>
+</body>
+</html>
